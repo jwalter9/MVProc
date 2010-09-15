@@ -187,7 +187,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
             if(parsed_param->upload != NULL){
                 strcpy(uploaded, tmpnam(NULL));
                 strcat(uploaded, strrchr(parsed_param->v.data, '.'));
-                fstat = apr_file_open(&fptr, uploaded, APR_WRITE, APR_OS_DEFAULT, r->pool);
+                fstat = apr_file_open(&fptr, uploaded, APR_WRITE | APR_CREATE, APR_OS_DEFAULT, r->pool);
                 if(fstat == APR_SUCCESS)
                     fstat = apreq_brigade_fwrite(fptr, wlen, parsed_param->upload);
                 apr_file_close(fptr);
@@ -420,6 +420,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         status = mysql_next_result(mysql);
         if(status > 0){
             ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MYSQL Error (next result): %s", mysql_error(mysql));
+            mysql_close(mysql);
             return NULL;
         };
     }while(status == 0);
