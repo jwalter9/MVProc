@@ -403,8 +403,12 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
                 if(row == NULL) break;
                 for(f = 0; f < next->num_fields; f++){
                     col_index = ro * next->cols[f].col_size;
-                    strncpy(&next->cols[f].vals[col_index], 
-                        (char *)row[f], next->cols[f].col_size);
+                    if(next->cols[f].col_size == 0){
+                        next->cols[f].vals[col_index] = '\0';
+                    }else{
+                        strncpy(&next->cols[f].vals[col_index], 
+                            (char *)row[f], next->cols[f].col_size);
+                    };
                     col_index += next->cols[f].col_size;
                     col_index--;
                     next->cols[f].vals[col_index] = '\0';
