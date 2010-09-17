@@ -244,25 +244,53 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     };
     
     if(cfg->session == 'Y' || cfg->session == 'y'){
-        sprintf(&query[pos],"SET @mvp_session = '%s'; ", session_id);
+        escaped = (char *)apr_palloc(r->pool, (strlen(session_id) * 2 + 1) * sizeof(char));
+        if(escaped == NULL) OUT_OF_MEMORY;
+        mysql_real_escape_string(mysql, escaped, session_id, strlen(session_id));
+        sprintf(&query[pos],"SET @mvp_session = '%s'; ", escaped);
         pos = strlen(query);
     };
-    sprintf(&query[pos],
-        "SET @mvp_servername = '%s'; "
-        "SET @mvp_requestmethod = '%s'; "
-        "SET @mvp_uri = '%s'; "
-        "SET @mvp_template = '%s'; "
-        "SET @mvp_headers = '%s'; "
-        "SET @mvp_requesttype = '%s'; "
-        "SET @mvp_remoteip = '%s'; ",
-        r->server->server_hostname,
-        r->method,
-        r->unparsed_uri,
-        procname,
-        r->the_request,
-        r->parsed_uri.scheme,
-        r->connection->remote_ip);
-    /* May want to add more of these */
+    
+    escaped = (char *)apr_palloc(r->pool, (strlen(r->server->server_hostname) * 2 + 1) * sizeof(char));
+    if(escaped == NULL) OUT_OF_MEMORY;
+    mysql_real_escape_string(mysql, escaped, r->server->server_hostname, strlen(r->server->server_hostname));
+    sprintf(&query[pos], "SET @mvp_servername = '%s'; ", escaped);
+    pos = strlen(query);
+    
+    escaped = (char *)apr_palloc(r->pool, (strlen(r->method) * 2 + 1) * sizeof(char));
+    if(escaped == NULL) OUT_OF_MEMORY;
+    mysql_real_escape_string(mysql, escaped, r->method, strlen(r->method));
+    sprintf(&query[pos], "SET @mvp_requestmethod = '%s'; ", escaped);
+    pos = strlen(query);
+    
+    escaped = (char *)apr_palloc(r->pool, (strlen(r->unparsed_uri) * 2 + 1) * sizeof(char));
+    if(escaped == NULL) OUT_OF_MEMORY;
+    mysql_real_escape_string(mysql, escaped, r->unparsed_uri, strlen(r->unparsed_uri));
+    sprintf(&query[pos], "SET @mvp_uri = '%s'; ", escaped);
+    pos = strlen(query);
+    
+    escaped = (char *)apr_palloc(r->pool, (strlen(procname) * 2 + 1) * sizeof(char));
+    if(escaped == NULL) OUT_OF_MEMORY;
+    mysql_real_escape_string(mysql, escaped, procname, strlen(procname));
+    sprintf(&query[pos], "SET @mvp_template = '%s'; ", escaped);
+    pos = strlen(query);
+    
+    escaped = (char *)apr_palloc(r->pool, (strlen(r->the_request) * 2 + 1) * sizeof(char));
+    if(escaped == NULL) OUT_OF_MEMORY;
+    mysql_real_escape_string(mysql, escaped, r->the_request, strlen(r->the_request));
+    sprintf(&query[pos], "SET @mvp_headers = '%s'; ", escaped);
+    pos = strlen(query);
+    
+    escaped = (char *)apr_palloc(r->pool, (strlen(r->parsed_uri.scheme) * 2 + 1) * sizeof(char));
+    if(escaped == NULL) OUT_OF_MEMORY;
+    mysql_real_escape_string(mysql, escaped, r->parsed_uri.scheme, strlen(r->parsed_uri.scheme));
+    sprintf(&query[pos], "SET @mvp_requesttype = '%s'; ", escaped);
+    pos = strlen(query);
+    
+    escaped = (char *)apr_palloc(r->pool, (strlen(r->connection->remote_ip) * 2 + 1) * sizeof(char));
+    if(escaped == NULL) OUT_OF_MEMORY;
+    mysql_real_escape_string(mysql, escaped, r->connection->remote_ip, strlen(r->connection->remote_ip));
+    sprintf(&query[pos], "SET @mvp_remoteip = '%s'; ", escaped);
     pos = strlen(query);
 
     sprintf(&query[pos], "CALL %s(",cache_entry->procname);
