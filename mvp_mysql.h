@@ -328,7 +328,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         switch(inparms[parm_ind].param->in_or_out){
         case INOUT:
         case OUT:
-            sprintf(&query[pos],"@%s, ",param->name);
+            sprintf(&query[pos],"@%s, ",inparms[parm_ind].param->name);
             pos = strlen(query);
             break;
         default:
