@@ -281,12 +281,6 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     sprintf(&query[pos], "SET @mvp_headers = '%s'; ", escaped);
     pos = strlen(query);
     
-    escaped = (char *)apr_palloc(r->pool, (strlen(r->parsed_uri.scheme) * 2 + 1) * sizeof(char));
-    if(escaped == NULL) OUT_OF_MEMORY;
-    mysql_real_escape_string(mysql, escaped, r->parsed_uri.scheme, strlen(r->parsed_uri.scheme));
-    sprintf(&query[pos], "SET @mvp_requesttype = '%s'; ", escaped);
-    pos = strlen(query);
-    
     escaped = (char *)apr_palloc(r->pool, (strlen(r->connection->remote_ip) * 2 + 1) * sizeof(char));
     if(escaped == NULL) OUT_OF_MEMORY;
     mysql_real_escape_string(mysql, escaped, r->connection->remote_ip, strlen(r->connection->remote_ip));
