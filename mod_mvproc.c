@@ -645,12 +645,23 @@ static const char *set_session(cmd_parms *parms, void *mconfig, const char *arg)
 
 static const char *maybe_build_cache(cmd_parms *parms, void *mconfig, const char *arg){
 	modmvproc_config *cfg = ap_get_module_config(parms->server->module_config, &mvproc_module);
+	if(cfg->group == NULL)
+	    return "mvprocCache directive must follow mvprocDbGroup directive";
 	// Turn on caching ONLY if explicitly specified
     if(arg[0] != 'Y' && arg[0] != 'y') return NULL;
     const char *cv = build_cache(parms->server->process->pconf, cfg);
-    if(cv == NULL)
+    if(cv == NULL && cfg->template_dir != NULL)
         cv = build_template_cache(parms->server->process->pconf, cfg);
     return cv;
+}
+
+static const char *maybe_make_pool(cmd_parms *parms, void *mconfig, const char *arg){
+	modmvproc_config *cfg = ap_get_module_config(parms->server->module_config, &mvproc_module);
+	if(cfg->group == NULL)
+	    return "mvprocDbPoolSize directive must follow mvprocDbGroup directive";
+	unsigned long num = atol(arg);
+	if(num == 0) return NULL;
+	return make_pool(parms->server->process->pconf, cfg, num);
 }
 
 static const command_rec modmvproc_cmds[] = {
@@ -662,6 +673,8 @@ static const command_rec modmvproc_cmds[] = {
         "Db Group defined in /etc/mysql/my.cnf"),
     AP_INIT_TAKE1("mvprocCache", maybe_build_cache, NULL, RSRC_CONF, 
         "Cache - Y for production, N for development."),
+    AP_INIT_TAKE1("mvprocDbPoolSize", maybe_make_pool, NULL, RSRC_CONF, 
+        "The number of connections to maintain."),
 	{NULL}
 };
 
@@ -670,6 +683,8 @@ static void *create_modmvproc_config(apr_pool_t *p, server_rec *s){
 	newcfg = (modmvproc_config *) apr_pcalloc(p, sizeof(modmvproc_config));
 	newcfg->cache = NULL;
 	newcfg->template_cache = NULL;
+	newcfg->pool = NULL;
+	newcfg->group = NULL;
 	return newcfg;
 }
 
