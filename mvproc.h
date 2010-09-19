@@ -171,6 +171,7 @@ typedef struct {
 	char *template_dir;
 	modmvproc_cache *cache;
 	template_cache_t *template_cache;
+	void *pool;
 } modmvproc_config;
 
 typedef struct {

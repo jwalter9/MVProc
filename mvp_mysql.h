@@ -19,11 +19,19 @@
 
 #include "mvproc.h"
 #include "mysql/mysql.h"
+#include "apr_thread_mutex.h"
 
 #define OUT_OF_MEMORY \
     { ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "Out of memory: apr_palloc returned NULL"); \
       mysql_close(mysql); \
     return NULL; }
+
+typedef struct{
+    MYSQL *connections;
+    char *locks;
+    mvulong size;
+    apr_thread_mutex_t *mutex;
+}mvpool_t;
     
 static void fill_proc_struct(apr_pool_t *p, const char *pname, 
                              const char *paramList, modmvproc_cache *cache_entry){
@@ -97,22 +105,102 @@ static const char *build_cache(apr_pool_t *p, modmvproc_config *cfg){
     return NULL;
 }
 
+static const char *make_pool(apr_pool_t *p, modmvproc_config *cfg, unsigned long num){
+    unsigned long iter;
+    mvpool_t *newpool;
+    newpool = (mvpool_t *)apr_palloc(p, sizeof(mvpool_t));
+    if(newpool == NULL) return "Failed apr_palloc pool";
+    newpool->connections = (MYSQL *)apr_palloc(p, num * sizeof(MYSQL));
+    if(newpool->connections == NULL) return "Failed apr_palloc connections";
+    newpool->locks = (char *)apr_palloc(p, num * sizeof(char));
+    if(newpool->locks == NULL) return "Failed apr_palloc locks";
+    newpool->size = num;
+    if(APR_SUCCESS != apr_thread_mutex_create(&newpool->mutex,
+        APR_THREAD_MUTEX_DEFAULT,p)) return "Failed to create mutex";
+    for(iter = 0; iter < num; iter++){
+        newpool->locks[iter] = 'o';
+        mysql_init(&newpool->connections[iter]);
+        if(&newpool->connections[iter] == NULL)
+            return "Failed init";
+        if(mysql_options(&newpool->connections[iter], 
+            MYSQL_READ_DEFAULT_GROUP, cfg->group) != 0)
+            return "Failed Option";
+        if(mysql_real_connect(&newpool->connections[iter], 
+            NULL, NULL, NULL, NULL, 0, NULL, CLIENT_MULTI_STATEMENTS) == NULL)
+            return mysql_error(&newpool->connections[iter]);
+    };
+    cfg->pool = newpool;
+    return NULL;
+}
+
+static MYSQL *db_connect(modmvproc_config *cfg, request_rec *r){
+    mvpool_t *thepool = (mvpool_t *)cfg->pool;
+    unsigned long iter = thepool->size;
+    MYSQL *mysql;
+    if(thepool == NULL){
+        mysql = apr_palloc(r->pool, sizeof(MYSQL));
+        mysql_init(mysql);
+        if(mysql_options(mysql, MYSQL_READ_DEFAULT_GROUP, cfg->group) != 0){
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MYSQL Options Failed");
+            return NULL;
+        };
+        if(mysql_real_connect(mysql, 
+            NULL, NULL, NULL, NULL, 0, NULL, CLIENT_MULTI_STATEMENTS) == NULL){
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MYSQL Connect Error: %s",
+                mysql_error(mysql));
+            return NULL;
+        };
+        return mysql;
+    }else{
+        while(1){
+            if(APR_SUCCESS != apr_thread_mutex_lock(thepool->mutex)) return NULL;
+            for(iter = 0; iter < thepool->size; iter++){
+                if(thepool->locks[iter] == 'o'){
+                    mysql = &thepool->connections[iter];
+                    thepool->locks[iter] = 'l';
+                    apr_thread_mutex_unlock(thepool->mutex);
+                    if(mysql_ping(mysql) == 0) return mysql;
+                    mysql_init(mysql);
+                    if(mysql_options(mysql, MYSQL_READ_DEFAULT_GROUP, cfg->group) != 0){
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MYSQL Options Failed");
+                        return NULL;
+                    };
+                    if(mysql_real_connect(mysql, 
+                        NULL, NULL, NULL, NULL, 0, NULL, CLIENT_MULTI_STATEMENTS) == NULL){
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MYSQL Connect Error: %s",
+                            mysql_error(mysql));
+                        return NULL;
+                    };
+                    return mysql;
+                };
+            };
+            apr_thread_mutex_unlock(thepool->mutex);
+            usleep(50);
+        };
+    };
+}
+
+static void db_cleanup(mvpool_t *pool, MYSQL *conn){
+    unsigned long iter = pool->size;
+    if(pool == NULL){
+        mysql_close(conn);
+    }else{
+        if(APR_SUCCESS != apr_thread_mutex_lock(pool->mutex)) return;
+        for(iter = 0; iter < pool->size; iter++){
+            if(&pool->connections[iter] == conn){
+                pool->locks[iter] = 'o';
+                break;
+            };
+        };
+        apr_thread_mutex_unlock(pool->mutex);
+    };
+}
+
 static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
                                     apreq_handle_t *apreq, const char *session_id){
 
-    MYSQL *mysql = apr_palloc(r->pool, sizeof(MYSQL));
-    mysql_init(mysql);
-    if(mysql_options(mysql, MYSQL_READ_DEFAULT_GROUP, cfg->group) != 0){
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MYSQL Options Failed");
-        return NULL;
-    };
-    if(mysql_real_connect(mysql, 
-       NULL, NULL, NULL, NULL, 0, NULL, CLIENT_MULTI_STATEMENTS) == NULL){
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MYSQL Connect Error: %s",
-            mysql_error(mysql));
-        return NULL;
-    };
-
+    MYSQL *mysql = db_connect(cfg, r);
+    if(mysql == NULL) return NULL;
 	modmvproc_cache *cache_entry = NULL;
 	size_t qsize = 0, add_mem = 0, add_flag = 0, pos = 0;
     char *escaped;
@@ -459,7 +547,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         };
     }while(status == 0);
 
-    mysql_close(mysql);
+    db_cleanup((mvpool_t *)cfg->pool, mysql);
     return tables;
 }
 
