@@ -21,33 +21,23 @@
 
 static db_val_t *lookup(apr_pool_t *p, modmvproc_table *tables, 
                     const char *tableName, const char *colName, mvulong rowNum){
-    db_val_t *ret_val = (db_val_t *)apr_palloc(p, (sizeof(db_val_t)));
-    if(ret_val == NULL) return NULL;
-    ret_val->val = NULL;
-    ret_val->type = _STRING;
     if(strcmp(colName, "CURRENT_ROW") == 0){
-        ret_val->val = (char *)apr_palloc(p, 11 * sizeof(char));
+        db_val_t *ret_val = (db_val_t *)apr_palloc(p, (sizeof(db_val_t)));
+        if(ret_val == NULL) return NULL;
+        ret_val->val = (char *)apr_palloc(p, 20 * sizeof(char));
         sprintf(ret_val->val, "%lu", rowNum);
         ret_val->type = _LONG;
         return ret_val;
     };
     mvulong cind = 0, rind = 0, c_index;
     while(tables != NULL){
-        if(strcmp(tables->name, tableName) == 0){
-            if(rowNum < tables->num_rows)
+        if(strcmp(tables->name, tableName) == 0 && rowNum < tables->num_rows)
             for(cind = 0; cind < tables->num_fields; cind++)
-            if(strcmp(tables->cols[cind].name, colName) == 0){
-                c_index = tables->cols[cind].col_size * rowNum;
-                ret_val->val = &tables->cols[cind].vals[c_index];
-                ret_val->type = tables->cols[cind].type;
-                return ret_val;
-            };
-        };
+            if(strcmp(tables->cols[cind].name, colName) == 0)
+                return &tables->cols[cind].vals[rowNum];
         tables = tables->next;
     };
-    ret_val->val = (char *)apr_palloc(p, sizeof(char));
-    ret_val->val[0] = '\0';
-    return ret_val;
+    return NULL;
 }
 
 static void set_user_val(apr_pool_t *p, modmvproc_table *tables, 
@@ -59,8 +49,9 @@ static void set_user_val(apr_pool_t *p, modmvproc_table *tables,
         if(strcmp(tables->name, "@") == 0){
             for(cind = 0; cind < tables->num_fields; cind++){
                 if(strcmp(tables->cols[cind].name, tag) == 0){
-                    tables->cols[cind].vals = val->tag;
-                    tables->cols[cind].type = val->type;
+                    tables->cols[cind].vals[0].val = val->tag;
+                    tables->cols[cind].vals[0].type = val->type;
+                    tables->cols[cind].vals[0].size = strlen(val->tag);
                     return;
                 };
             };
@@ -68,15 +59,14 @@ static void set_user_val(apr_pool_t *p, modmvproc_table *tables,
             ncol = (db_col_t *)apr_palloc(p, 
                 tables->num_fields * sizeof(db_col_t));
             for(cind = 0; cind < tables->num_fields - 1; cind++){
-                ncol[cind].type = tables->cols[cind].type;
                 ncol[cind].name = tables->cols[cind].name;
                 ncol[cind].vals = tables->cols[cind].vals;
-                ncol[cind].col_size = 0;
             };
-            ncol[cind].type = val->type;
-            ncol[cind].name = tag;
-            ncol[cind].vals = val->tag;
-            ncol[cind].col_size = 0;
+            ncol[cind].vals = (db_val_t *)apr_palloc(p, (sizeof(db_val_t)));
+            if(ncol[cind].vals == NULL) return;
+            ncol[cind].vals[0].type = val->type;
+            ncol[cind].vals[0].val = val->tag;
+            ncol[cind].vals[0].size = strlen(val->tag);
             tables->cols = ncol;
             return;
         };
@@ -135,6 +125,7 @@ static unsigned char eval_expr(apr_pool_t *p, modmvproc_table *tables,
     left = exp->left;
     if(exp->cons_left == 0){
         val = get_tag_value(p, exp->left, tables, cur_table, cur_row);
+        if(val == NULL || val->val == NULL) return 0;
         left = val->val;
         type = val->type;
     };
@@ -143,6 +134,7 @@ static unsigned char eval_expr(apr_pool_t *p, modmvproc_table *tables,
     right = exp->right;
     if(exp->cons_right == 0){
         val = get_tag_value(p, exp->right, tables, cur_table, cur_row);
+        if(val == NULL || val->val == NULL) return 0;
         right = val->val;
         type = val->type;
     };
@@ -240,6 +232,7 @@ static user_val_t *eval_set(apr_pool_t *p, modmvproc_table *tables,
                 tmpset->tag = iter->tag;
             }else if(iter->oper != _SETVAL){
                 tmpval = get_tag_value(p, iter->tag, tables, cur_table, cur_row);
+                if(tmpval == NULL || tmpval->val == NULL) return NULL;
                 tmpset->type = tmpval->type;
                 tmpset->tag = tmpval->val;
             }else{
@@ -412,7 +405,10 @@ static void fill_template(request_rec *r, modmvproc_config *cfg, template_cache_
         case _VALUE:
             if(ifstate[ifdepth] == 1){
                 db_val = get_tag_value(r->pool, piece->tag, tables, cur_table, cur_row);
-                ap_rprintf(r, "%s%s",db_val->val,piece->follow_text);
+                if(db_val != NULL && db_val->val != NULL)
+                    ap_rprintf(r, "%s%s",db_val->val,piece->follow_text);
+                else
+                    ap_rprintf(r, "%s",piece->follow_text);
             };
             break;
         case _IF:
@@ -531,11 +527,10 @@ static void xml_out(request_rec *r, modmvproc_config *cfg, modmvproc_table *tabl
             blobcount = 0;
             ap_rprintf(r, "%s", "<row ");
             for(cind = 0; cind < tables->num_fields; cind++){
-                index = tables->cols[cind].col_size * rind;
-                if(tables->cols[cind].type == _BLOB){
+                if(tables->cols[cind].vals[rind].type == _BLOB){
                     blobcount++;
                 }else{
-                    tchr = ap_escape_quotes(r->pool, &tables->cols[cind].vals[index]);
+                    tchr = ap_escape_quotes(r->pool, tables->cols[cind].vals[rind].val);
                     ap_rprintf(r,"%s=\"%s\" ",tables->cols[cind].name,tchr);
                 };
             };
@@ -544,12 +539,11 @@ static void xml_out(request_rec *r, modmvproc_config *cfg, modmvproc_table *tabl
             }else{
                 ap_rprintf(r, "%s", ">");
                 for(cind = 0; cind < tables->num_fields; cind++){
-                    if(tables->cols[cind].type == _BLOB){
-                        index = tables->cols[cind].col_size * rind;
-                        ap_rprintf(r, "<%s><![CDATA[%s]]></%s>",
-                            tables->cols[cind].name,
-                            &tables->cols[cind].vals[index],
-                            tables->cols[cind].name);
+                    if(tables->cols[cind].vals[rind].type == _BLOB){
+                        ap_rprintf(r, "<%s><![CDATA[",tables->cols[cind].name);
+                        ap_rwrite(tables->cols[cind].vals[rind].val, 
+                            tables->cols[cind].vals[rind].size, r);
+                        ap_rprintf(r, "]]></%s>",tables->cols[cind].name);
                     };
                 };
                 ap_rprintf(r, "%s", "</row>");

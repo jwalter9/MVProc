@@ -70,14 +70,13 @@ typedef enum {
 
 typedef struct {
     char *val;
+    mvulong size;
     db_col_type type;
 } db_val_t;
 
 typedef struct {
-    db_col_type type;
     char *name;
-    char *vals;
-    mvulong col_size;
+    db_val_t *vals;
 } db_col_t;
 
 typedef struct modmvproc_table {

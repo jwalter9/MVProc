@@ -172,7 +172,14 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     };
 
     /* starting size about twice minimum for headroom and changes */
-    qsize = 512 + strlen(procname); 
+    qsize = 512 + strlen(procname) + (
+        strlen(session_id) + 
+        strlen(r->server->server_hostname) +
+        strlen(r->method) +
+        strlen(r->unparsed_uri) +
+        strlen(r->the_request) +
+        strlen(r->connection->remote_ip)
+        ) * 2; 
     parm_ind = 0;
     param = cache_entry->param_list;
     db_call_param inparms[cache_entry->num_params];
@@ -209,13 +216,13 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         };
         switch(param->in_or_out){
         case IN:
-            qsize += strlen(inparms[parm_ind].val);
+            qsize += strlen(inparms[parm_ind].val) + 4;
             break;
         case INOUT:
-            qsize += strlen(param->name) * 2 + strlen(inparms[parm_ind].val) + 13;
+            qsize += strlen(param->name) * 2 + strlen(inparms[parm_ind].val) + 17;
             break;
         case OUT:
-            qsize += strlen(param->name) * 2 + 13;
+            qsize += strlen(param->name) * 2 + 17;
             break;
         default:
             break;
@@ -339,7 +346,8 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     };
 
     int status;
-    mvulong index = 0, f, ro, c, col_index;
+    mvulong index = 0, f, ro, c, col_index, *lens;
+    db_col_type *coltypes;
     MYSQL_FIELD *fields;
     
     modmvproc_table *next = 
@@ -358,6 +366,8 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
             next->cols = (db_col_t *)apr_palloc(r->pool, 
                 next->num_fields * sizeof(db_col_t));
             if(next->cols == NULL) OUT_OF_MEMORY;
+            coltypes = (db_col_type *)apr_palloc(r->pool,
+                next->num_fields * sizeof(db_col_type));
             for(c = 0; c < next->num_fields; c++)
                 next->cols[c].name = NULL;
 
@@ -365,7 +375,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
             for(f = 0; f < next->num_fields; f++){
                 switch(fields[f].type){
                 case MYSQL_TYPE_BLOB:
-                    next->cols[f].type = _BLOB;
+                    coltypes[f] = _BLOB;
                     break;
                 case MYSQL_TYPE_BIT:
                 case MYSQL_TYPE_TINY:
@@ -373,18 +383,19 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
                 case MYSQL_TYPE_LONG:
                 case MYSQL_TYPE_INT24:
                 case MYSQL_TYPE_LONGLONG:
-                    next->cols[f].type = _LONG;
+                    coltypes[f] = _LONG;
                     break;
                 case MYSQL_TYPE_DECIMAL:
                 case MYSQL_TYPE_NEWDECIMAL:
                 case MYSQL_TYPE_FLOAT:
                 case MYSQL_TYPE_DOUBLE:
-                    next->cols[f].type = _DOUBLE;
+                    coltypes[f] = _DOUBLE;
                     break;
                 default:
-                    next->cols[f].type = _STRING;
+                    coltypes[f] = _STRING;
                     break;
                 };
+                if(fields[f].length > 32) coltypes[f] = _BLOB;
                 next->cols[f].name = 
                     (char *)apr_palloc(r->pool, (strlen(fields[f].name)+1) * sizeof(char));
                 if(next->cols[f].name == NULL) OUT_OF_MEMORY;
@@ -393,25 +404,22 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
                 else
                     strcpy(next->cols[f].name, fields[f].name);
 
-                next->cols[f].col_size = fields[f].max_length + 1;
-                next->cols[f].vals = (char *)apr_palloc(r->pool, 
-                    next->num_rows * next->cols[f].col_size * sizeof(char));
+                next->cols[f].vals = (db_val_t *)apr_palloc(r->pool,
+                    next->num_rows * sizeof(db_val_t));
                 if(next->cols[f].vals == NULL) OUT_OF_MEMORY;
             };
             for(ro = 0; ro < next->num_rows; ro++){
                 row = mysql_fetch_row(result);
                 if(row == NULL) break;
+                lens = mysql_fetch_lengths(result);
                 for(f = 0; f < next->num_fields; f++){
-                    col_index = ro * next->cols[f].col_size;
-                    if(next->cols[f].col_size == 0){
-                        next->cols[f].vals[col_index] = '\0';
-                    }else{
-                        strncpy(&next->cols[f].vals[col_index], 
-                            (char *)row[f], next->cols[f].col_size);
-                    };
-                    col_index += next->cols[f].col_size;
-                    col_index--;
-                    next->cols[f].vals[col_index] = '\0';
+                    next->cols[f].vals[ro].type = coltypes[f];
+                    next->cols[f].vals[ro].size = lens[f];
+                    next->cols[f].vals[ro].val = 
+                    (char *)apr_palloc(r->pool, (lens[f] + 1) * sizeof(char));
+                    if(next->cols[f].vals[ro].val == NULL) OUT_OF_MEMORY;
+                    memcpy(next->cols[f].vals[ro].val, row[f], lens[f]);
+                    next->cols[f].vals[ro].val[lens[f]] = '\0';
                 };
             };
             
