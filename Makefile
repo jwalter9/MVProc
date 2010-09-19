@@ -17,7 +17,7 @@ APACHECTL=/usr/sbin/apachectl
 #   additional defines, includes and libraries
 #DEFS=
 INCLUDES=-I/usr/include/apreq2
-LIBS=-lmysqlclient -lapreq2
+LIBS=-lmysqlclient_r -lapreq2
 LDFLAGS=-Wl,--as-needed -Wl,-z,relro $(LIBS)
 
 #   the default target
