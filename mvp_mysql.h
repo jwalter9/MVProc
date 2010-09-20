@@ -337,6 +337,9 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
             break;
         };
     };
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+    "query: %s", query);
+    
     
     if(cfg->session == 'Y' || cfg->session == 'y'){
         escaped = (char *)apr_palloc(r->pool, (strlen(session_id) * 2 + 1) * sizeof(char));
@@ -345,42 +348,63 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         sprintf(&query[pos],"SET @mvp_session = '%s'; ", escaped);
         pos = strlen(query);
     };
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+    "query: %s", query);
+    
     
     escaped = (char *)apr_palloc(r->pool, (strlen(r->server->server_hostname) * 2 + 1) * sizeof(char));
     if(escaped == NULL) OUT_OF_MEMORY;
     mysql_real_escape_string(mysql, escaped, r->server->server_hostname, strlen(r->server->server_hostname));
     sprintf(&query[pos], "SET @mvp_servername = '%s'; ", escaped);
     pos = strlen(query);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+    "query: %s", query);
+    
     
     escaped = (char *)apr_palloc(r->pool, (strlen(r->method) * 2 + 1) * sizeof(char));
     if(escaped == NULL) OUT_OF_MEMORY;
     mysql_real_escape_string(mysql, escaped, r->method, strlen(r->method));
     sprintf(&query[pos], "SET @mvp_requestmethod = '%s'; ", escaped);
     pos = strlen(query);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+    "query: %s", query);
+    
     
     escaped = (char *)apr_palloc(r->pool, (strlen(r->unparsed_uri) * 2 + 1) * sizeof(char));
     if(escaped == NULL) OUT_OF_MEMORY;
     mysql_real_escape_string(mysql, escaped, r->unparsed_uri, strlen(r->unparsed_uri));
     sprintf(&query[pos], "SET @mvp_uri = '%s'; ", escaped);
     pos = strlen(query);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+    "query: %s", query);
+    
     
     escaped = (char *)apr_palloc(r->pool, (strlen(procname) * 2 + 1) * sizeof(char));
     if(escaped == NULL) OUT_OF_MEMORY;
     mysql_real_escape_string(mysql, escaped, procname, strlen(procname));
     sprintf(&query[pos], "SET @mvp_template = '%s'; ", escaped);
     pos = strlen(query);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+    "query: %s", query);
+    
     
     escaped = (char *)apr_palloc(r->pool, (strlen(r->the_request) * 2 + 1) * sizeof(char));
     if(escaped == NULL) OUT_OF_MEMORY;
     mysql_real_escape_string(mysql, escaped, r->the_request, strlen(r->the_request));
     sprintf(&query[pos], "SET @mvp_headers = '%s'; ", escaped);
     pos = strlen(query);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+    "query: %s", query);
+    
     
     escaped = (char *)apr_palloc(r->pool, (strlen(r->connection->remote_ip) * 2 + 1) * sizeof(char));
     if(escaped == NULL) OUT_OF_MEMORY;
     mysql_real_escape_string(mysql, escaped, r->connection->remote_ip, strlen(r->connection->remote_ip));
     sprintf(&query[pos], "SET @mvp_remoteip = '%s'; ", escaped);
     pos = strlen(query);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+    "query: %s", query);
+    
 
     sprintf(&query[pos], "CALL %s(",cache_entry->procname);
     pos = strlen(query);
@@ -404,14 +428,23 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     };
     sprintf(&query[pos],");");
     pos += 2;
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+    "query: %s", query);
+    
 
     sprintf(&query[pos]," SELECT ");
     pos += 8;
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+    "query: %s", query);
+    
     
     if(cfg->session == 'Y' || cfg->session == 'y'){
         sprintf(&query[pos],"@mvp_session, ");
         pos += 14;
     };
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+    "query: %s", query);
+    
     
     for(parm_ind = 0; parm_ind < cache_entry->num_params; parm_ind++){
         switch(inparms[parm_ind].param->in_or_out){
@@ -424,6 +457,9 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
             break;
         };
     };
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+    "query: %s", query);
+    
 
     sprintf(&query[pos],"@mvp_template;");
     pos += 14;
@@ -434,6 +470,9 @@ ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MYSQL Error (CALL query): %s", mysql_error(mysql));
         return NULL;
     };
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+    "%s", "call went through ok");
+    
 
     int status;
     mvulong index = 0, f, ro, c, col_index, *lens;
