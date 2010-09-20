@@ -135,7 +135,6 @@ static const char *make_pool(apr_pool_t *p, modmvproc_config *cfg, unsigned long
 
 static MYSQL *db_connect(modmvproc_config *cfg, request_rec *r){
     mvpool_t *thepool = (mvpool_t *)cfg->pool;
-    unsigned long iter = thepool->size;
     MYSQL *mysql;
     if(thepool == NULL){
         mysql = apr_palloc(r->pool, sizeof(MYSQL));
@@ -152,6 +151,7 @@ static MYSQL *db_connect(modmvproc_config *cfg, request_rec *r){
         };
         return mysql;
     }else{
+        unsigned long iter = thepool->size;
         while(1){
             if(APR_SUCCESS != apr_thread_mutex_lock(thepool->mutex)) return NULL;
             for(iter = 0; iter < thepool->size; iter++){
@@ -181,10 +181,10 @@ static MYSQL *db_connect(modmvproc_config *cfg, request_rec *r){
 }
 
 static void db_cleanup(mvpool_t *pool, MYSQL *conn){
-    unsigned long iter = pool->size;
     if(pool == NULL){
         mysql_close(conn);
     }else{
+        unsigned long iter;
         if(APR_SUCCESS != apr_thread_mutex_lock(pool->mutex)) return;
         for(iter = 0; iter < pool->size; iter++){
             if(&pool->connections[iter] == conn){
@@ -199,8 +199,12 @@ static void db_cleanup(mvpool_t *pool, MYSQL *conn){
 static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
                                     apreq_handle_t *apreq, const char *session_id){
 
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                "%s", "about to get connection");
     MYSQL *mysql = db_connect(cfg, r);
     if(mysql == NULL) return NULL;
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                "%s", "got connection");
 	modmvproc_cache *cache_entry = NULL;
 	size_t qsize = 0, add_mem = 0, add_flag = 0, pos = 0;
     char *escaped;
