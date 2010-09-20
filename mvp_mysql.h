@@ -199,12 +199,8 @@ static void db_cleanup(mvpool_t *pool, MYSQL *conn){
 static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
                                     apreq_handle_t *apreq, const char *session_id){
 
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                "%s", "about to get connection");
     MYSQL *mysql = db_connect(cfg, r);
     if(mysql == NULL) return NULL;
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                "%s", "got connection");
 	modmvproc_cache *cache_entry = NULL;
 	size_t qsize = 0, add_mem = 0, add_flag = 0, pos = 0;
     char *escaped;
@@ -431,6 +427,8 @@ ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
 
     sprintf(&query[pos],"@mvp_template;");
     pos += 14;
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+    "query: %s", query);
     
     if(mysql_real_query(mysql,query,strlen(query)) != 0){
         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MYSQL Error (CALL query): %s", mysql_error(mysql));
@@ -504,7 +502,11 @@ ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
                 row = mysql_fetch_row(result);
                 if(row == NULL) break;
                 lens = mysql_fetch_lengths(result);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                "row %lu", ro);
                 for(f = 0; f < next->num_fields; f++){
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                "col %s", row[f]);
                     next->cols[f].vals[ro].type = coltypes[f];
                     next->cols[f].vals[ro].size = lens[f];
                     next->cols[f].vals[ro].val = 
