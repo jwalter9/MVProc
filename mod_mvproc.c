@@ -579,6 +579,7 @@ static int modmvproc_handler (request_rec *r){
     apreq_handle_t *apreq = apreq_handle_apache2(r);
     struct stat file_status;
     if(apr_strnatcmp(r->uri, "/") != 0 && stat(r->filename, &file_status) == 0) return DECLINED;
+    if(strlen(r->uri) > 65) return DECLINED;
     
 	modmvproc_config *cfg = ap_get_module_config(r->server->module_config, &mvproc_module);
     apreq_cookie_t *session_cookie = apreq_jar_get(apreq, "MVPSESSION");
@@ -597,9 +598,12 @@ static int modmvproc_handler (request_rec *r){
         };
     };
     
-    modmvproc_table *tables = getDBResult(cfg, r, apreq, session_val);
+    int *err = (int *)apr_palloc(r->pool, sizeof(int));
+    if(err == NULL) return 500;
+    *err = 500;
+    modmvproc_table *tables = getDBResult(cfg, r, apreq, session_val, err);
 
-    if(tables == NULL) return 500;
+    if(tables == NULL) return *err;
     db_val_t *scv = lookup(r->pool, tables, "PROC_OUT", "mvp_session", 0);
 
     if((cfg->session == 'Y' || cfg->session == 'y') &&

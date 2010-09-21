@@ -197,15 +197,16 @@ static void db_cleanup(mvpool_t *pool, MYSQL *conn){
 }
 
 static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
-                                    apreq_handle_t *apreq, const char *session_id){
+                                    apreq_handle_t *apreq, 
+                                    const char *session_id, int *errback){
 
     MYSQL *mysql = db_connect(cfg, r);
     if(mysql == NULL) return NULL;
 	modmvproc_cache *cache_entry = NULL;
 	size_t qsize = 0, add_mem = 0, add_flag = 0, pos = 0;
     char *escaped;
-    char procname[65];
-    char uploaded[65];
+    char procname[66];
+    char uploaded[1024];
     strcpy(procname, r->uri + sizeof(char)); /* first will be a '/' */
     if(procname[0] == '\0')
         strcpy(procname, "landing");
@@ -226,6 +227,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
             if(cache_entry->next == NULL){
                 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
                     "Request for unknown content: %s", procname);
+                *errback = DECLINED;
                 return NULL;
             };
             cache_entry = cache_entry->next;
@@ -245,6 +247,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
             ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
                 "Request for unknown content: %s", procname);
             mysql_free_result(result);
+            *errback = DECLINED;
             return NULL;
         };
         row = mysql_fetch_row(result);
