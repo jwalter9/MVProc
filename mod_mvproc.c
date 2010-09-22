@@ -733,16 +733,14 @@ static const char *maybe_make_pool(cmd_parms *parms, void *mconfig, const char *
 }
 
 static const char *set_out_type(cmd_parms *parms, void *mconfig, const char *arg){
-	modmvproc_config *cfg = ap_get_module_config(parms->server->module_config, &mvproc_module);
-	if(strcmp(arg, "PLAIN") == 0 || strcmp(arg,"plain") == 0){
-	    cfg->output = _XML_NO_ATTR;
-	}else if(strcmp(arg, "JSON") == 0 || strcmp(arg,"json") == 0){
-	    cfg->output = _JSON;
-	}else{
-	    cfg->output = _XML_MIXED;
-	};
-	cfg->session = arg[0];
-	return NULL;
+    modmvproc_config *cfg = ap_get_module_config(parms->server->module_config, &mvproc_module);
+    if(strcmp(arg, "PLAIN") == 0 || strcmp(arg,"plain") == 0)
+        cfg->output = _XML_NO_ATTR;
+    else if(strcmp(arg, "JSON") == 0 || strcmp(arg,"json") == 0)
+        cfg->output = _JSON;
+    else
+        cfg->output = _XML_MIXED;
+    return NULL;
 }
 
 static const command_rec modmvproc_cmds[] = {
