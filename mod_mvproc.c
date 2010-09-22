@@ -556,16 +556,74 @@ static void xml_out(request_rec *r, modmvproc_config *cfg, modmvproc_table *tabl
     return;
 }
 
+static void xml_plain(request_rec *r, modmvproc_config *cfg, modmvproc_table *tables){
+    char *tchr;
+    mvulong rind, cind, index;
+    ap_rprintf(r, "%s", "<?xml version='1.0' encoding='UTF-8'?><results>");
+    while(tables != NULL){
+        ap_rprintf(r,"<table name='%s'>", tables->name);
+        for(rind = 0; rind < tables->num_rows; rind++){
+            ap_rprintf(r, "%s", "<row>");
+            for(cind = 0; cind < tables->num_fields; cind++){
+                ap_rprintf(r, "<%s><![CDATA[",tables->cols[cind].name);
+                ap_rwrite(tables->cols[cind].vals[rind].val, 
+                    tables->cols[cind].vals[rind].size, r);
+                ap_rprintf(r, "]]></%s>",tables->cols[cind].name);
+            };
+            ap_rprintf(r, "%s", "</row>");
+        };
+        ap_rprintf(r, "%s", "</table>");
+        tables = tables->next;
+    };
+    ap_rprintf(r, "%s", "</results>\r\n");
+    return;
+}
+
+static void json_out(request_rec *r, modmvproc_config *cfg, modmvproc_table *tables){
+    char *tchr;
+    mvulong rind, cind, index;
+    ap_rprintf(r, "%s", "{\"table\":[");
+    while(tables != NULL){
+        ap_rprintf(r,"{\"name\":\"%s\",\"row\":[", tables->name);
+        for(rind = 0; rind < tables->num_rows; rind++){
+            ap_rprintf(r, "%s", "{");
+            for(cind = 0; cind < tables->num_fields; cind++){
+                tchr = ap_escape_quotes(r->pool, tables->cols[cind].vals[rind].val);
+                if(tables->num_fields - cind > 1)
+                    ap_rprintf(r,"\"%s\":\"%s\",",tables->cols[cind].name,tchr);
+                else
+                    ap_rprintf(r,"\"%s\":\"%s\"",tables->cols[cind].name,tchr);
+            };
+            if(tables->num_rows - rind > 1) ap_rprintf(r, "%s", "},");
+            else ap_rprintf(r, "%s", "}]");
+        };
+        ap_rprintf(r, "%s", "}");
+        if(tables->next != NULL) ap_rprintf(r, "%s", ",");
+        tables = tables->next;
+    };
+    ap_rprintf(r, "%s", "]}\r\n");
+    return;
+}
+
 static void generate_output(request_rec *r, modmvproc_config *cfg, 
                             modmvproc_table *tables, apreq_cookie_t *ck){
     db_val_t *tval = lookup(r->pool, tables, "PROC_OUT", "mvp_template", 0);
     template_cache_t *template = get_template(r->pool, cfg, tval->val);
 
-    ap_set_content_type(r, template == NULL ? "text/xml" : "text/html");
+    ap_set_content_type(r, template == NULL && cfg->output != _JSON ? "text/xml" : "text/html");
     if(ck != NULL)
         apr_table_set(r->headers_out, "Set-Cookie", apreq_cookie_as_string(ck, r->pool));
     if(template == NULL){
-        xml_out(r, cfg, tables);
+        switch(cfg->output){
+        case _XML_NO_ATTR:
+            xml_plain(r, cfg, tables);
+            break;
+        case _JSON:
+            json_out(r, cfg, tables);
+            break;
+        default:
+            xml_out(r, cfg, tables);
+        };
     }else{
         fill_template(r, cfg, template, tables, "PROC_OUT", 0);
         ap_rprintf(r, "%s", "\n");
@@ -668,6 +726,19 @@ static const char *maybe_make_pool(cmd_parms *parms, void *mconfig, const char *
 	return make_pool(parms->server->process->pconf, cfg, num);
 }
 
+static const char *set_out_type(cmd_parms *parms, void *mconfig, const char *arg){
+	modmvproc_config *cfg = ap_get_module_config(parms->server->module_config, &mvproc_module);
+	if(strcmp(arg, "PLAIN") == 0 || strcmp(arg,"plain") == 0){
+	    cfg->output = _XML_NO_ATTR;
+	}else if(strcmp(arg, "JSON") == 0 || strcmp(arg,"json") == 0){
+	    cfg->output = _JSON;
+	}else{
+	    cfg->output = _XML_MIXED;
+	};
+	cfg->session = arg[0];
+	return NULL;
+}
+
 static const command_rec modmvproc_cmds[] = {
     AP_INIT_TAKE1("mvprocSession", set_session, NULL, RSRC_CONF, 
         "Session cookie: Y or N."),
@@ -679,6 +750,8 @@ static const command_rec modmvproc_cmds[] = {
         "Cache - Y for production, N for development."),
     AP_INIT_TAKE1("mvprocDbPoolSize", maybe_make_pool, NULL, RSRC_CONF, 
         "The number of connections to maintain."),
+    AP_INIT_TAKE1("mvprocOutputStyle", set_out_type, NULL, RSRC_CONF, 
+        "The default output: PLAIN, JSON, or MIXED"),
 	{NULL}
 };
 
@@ -689,6 +762,7 @@ static void *create_modmvproc_config(apr_pool_t *p, server_rec *s){
 	newcfg->template_cache = NULL;
 	newcfg->pool = NULL;
 	newcfg->group = NULL;
+	newcfg->output = _XML_MIXED;
 	return newcfg;
 }
 

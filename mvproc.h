@@ -124,6 +124,12 @@ typedef enum {
     _NOOP
 } mvmath_t;
 
+typedef enum {
+    _XML_MIXED,
+    _XML_NO_ATTR,
+    _JSON
+} out_type;
+
 typedef struct {
     char *left;
     unsigned short cons_left;
@@ -172,6 +178,7 @@ typedef struct {
 	modmvproc_cache *cache;
 	template_cache_t *template_cache;
 	void *pool;
+	out_type output;
 } modmvproc_config;
 
 typedef struct {
