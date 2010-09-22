@@ -610,7 +610,13 @@ static void generate_output(request_rec *r, modmvproc_config *cfg,
     db_val_t *tval = lookup(r->pool, tables, "PROC_OUT", "mvp_template", 0);
     template_cache_t *template = get_template(r->pool, cfg, tval->val);
 
-    ap_set_content_type(r, template == NULL && cfg->output != _JSON ? "text/xml" : "text/html");
+    if(template != NULL)
+        ap_set_content_type(r, "text/html");
+    else if(cfg->output == _JSON)
+        ap_set_content_type(r, "application/json");
+    else
+        ap_set_content_type(r, "text/xml");
+
     if(ck != NULL)
         apr_table_set(r->headers_out, "Set-Cookie", apreq_cookie_as_string(ck, r->pool));
     if(template == NULL){
