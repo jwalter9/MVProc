@@ -367,11 +367,13 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     sprintf(&query[pos], "SET @mvp_uri = '%s'; ", escaped);
     pos = strlen(query);
     
-    escaped = (char *)apr_palloc(r->pool, (strlen(procname) * 2 + 1) * sizeof(char));
-    if(escaped == NULL) OUT_OF_MEMORY;
-    mysql_real_escape_string(mysql, escaped, procname, strlen(procname));
-    sprintf(&query[pos], "SET @mvp_template = '%s'; ", escaped);
-    pos = strlen(query);
+    if(cfg->template_dir != NULL && strlen(cfg->template_dir) > 0){
+        escaped = (char *)apr_palloc(r->pool, (strlen(procname) * 2 + 1) * sizeof(char));
+        if(escaped == NULL) OUT_OF_MEMORY;
+        mysql_real_escape_string(mysql, escaped, procname, strlen(procname));
+        sprintf(&query[pos], "SET @mvp_template = '%s'; ", escaped);
+        pos = strlen(query);
+    };
     
     escaped = (char *)apr_palloc(r->pool, (strlen(r->the_request) * 2 + 1) * sizeof(char));
     if(escaped == NULL) OUT_OF_MEMORY;
@@ -408,31 +410,38 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     sprintf(&query[pos],");");
     pos += 2;
 
-    sprintf(&query[pos]," SELECT ");
-    pos += 8;
-    
-    if(cfg->session == 'Y' || cfg->session == 'y'){
-        sprintf(&query[pos],"@mvp_session, ");
-        pos += 14;
-    };
-    
+    qsize = 0;
     for(parm_ind = 0; parm_ind < cache_entry->num_params; parm_ind++){
         switch(inparms[parm_ind].param->in_or_out){
         case INOUT:
         case OUT:
-            sprintf(&query[pos],"@%s, ",inparms[parm_ind].param->name);
+            sprintf(&query[pos],"%s@%s", qsize > 0 ? ", " : " SELECT ",
+                inparms[parm_ind].param->name);
             pos = strlen(query);
+            qsize++;
             break;
         default:
             break;
         };
     };
 
-    sprintf(&query[pos],"@mvp_template;");
-    pos += 14;
+    if(cfg->session == 'Y' || cfg->session == 'y'){
+        sprintf(&query[pos],"%s@%s", qsize > 0 ? ", ":" SELECT ","mvp_session");
+        pos = strlen(query);
+        qsize++;
+    };
+
+    if(cfg->template_dir != NULL && strlen(cfg->template_dir) > 0){
+        sprintf(&query[pos],"%s@%s",qsize > 0 ? ", ":" SELECT ","mvp_template");
+        pos = strlen(query);
+        qsize++;
+    };
+    
+    if(qsize > 0) sprintf(&query[pos],";");
     
     if(mysql_real_query(mysql,query,strlen(query)) != 0){
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MYSQL Error (CALL query): %s", mysql_error(mysql));
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+            "MYSQL Error (CALL query): %s", mysql_error(mysql));
         return NULL;
     };
 
@@ -514,7 +523,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
                 };
             };
             
-            if(!mysql_more_results(mysql)){ 
+            if(!mysql_more_results(mysql) && qsize > 0){ 
                 /* This means we're looking at the last result - 
                     The INOUTs, OUTs, and session vars */
                 next->name = (char *)apr_palloc(r->pool, 9 * sizeof(char));
