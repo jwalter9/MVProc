@@ -607,11 +607,13 @@ static void json_out(request_rec *r, modmvproc_config *cfg, modmvproc_table *tab
 
 static void generate_output(request_rec *r, modmvproc_config *cfg, 
                             modmvproc_table *tables, apreq_cookie_t *ck){
-    db_val_t *tval = lookup(r->pool, tables, "PROC_OUT", "mvp_template", 0);
+
     template_cache_t *template = NULL;
-    if(cfg->template_dir != NULL && strlen(cfg->template_dir) > 0 &&
-        tval != NULL && tval->val != NULL && strlen(tval->val) > 0)
+    if(cfg->template_dir != NULL && strlen(cfg->template_dir) > 0){
+        db_val_t *tval = lookup(r->pool, tables, "PROC_OUT", "mvp_template", 0);
+        if(tval != NULL && tval->val != NULL && strlen(tval->val) > 0)
         template = get_template(r->pool, cfg, tval->val);
+    };
 
     if(template != NULL)
         ap_set_content_type(r, "text/html");
@@ -663,6 +665,9 @@ static int modmvproc_handler (request_rec *r){
             session_val = (char *)apr_palloc(r->pool, (session_cookie->v.dlen + 1) * sizeof(char));
             strcpy(session_val, session_cookie->v.data);
         };
+    }else{
+        session_val = (char *)apr_palloc(r->pool, sizeof(char));
+        session_val[0] = '\0';
     };
     
     int *err = (int *)apr_palloc(r->pool, sizeof(int));
@@ -673,9 +678,10 @@ static int modmvproc_handler (request_rec *r){
     if(tables == NULL) return *err;
     db_val_t *scv = lookup(r->pool, tables, "PROC_OUT", "mvp_session", 0);
 
-    if((cfg->session == 'Y' || cfg->session == 'y') &&
+    if(scv != NULL && (cfg->session == 'Y' || cfg->session == 'y') &&
         (strcmp(session_val, scv->val) != 0 || session_cookie == NULL))
-        session_cookie = apreq_cookie_make(r->pool,"MVPSESSION",10,scv->val,strlen(scv->val));
+        session_cookie = 
+        apreq_cookie_make(r->pool,"MVPSESSION",10,scv->val,strlen(scv->val));
     
     /* PARSE TEMPLATE OR OUTPUT XML */
     generate_output(r, cfg, tables, session_cookie);
