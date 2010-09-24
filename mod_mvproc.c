@@ -608,7 +608,10 @@ static void json_out(request_rec *r, modmvproc_config *cfg, modmvproc_table *tab
 static void generate_output(request_rec *r, modmvproc_config *cfg, 
                             modmvproc_table *tables, apreq_cookie_t *ck){
     db_val_t *tval = lookup(r->pool, tables, "PROC_OUT", "mvp_template", 0);
-    template_cache_t *template = get_template(r->pool, cfg, tval->val);
+    template_cache_t *template = NULL;
+    if(cfg->template_dir != NULL && strlen(cfg->template_dir) > 0 &&
+        tval != NULL && tval->val != NULL && strlen(tval->val) > 0)
+        template = get_template(r->pool, cfg, tval->val);
 
     if(template != NULL)
         ap_set_content_type(r, "text/html");
