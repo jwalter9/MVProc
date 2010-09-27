@@ -29,7 +29,7 @@ static db_val_t *lookup(apr_pool_t *p, modmvproc_table *tables,
         ret_val->type = _LONG;
         return ret_val;
     };
-    mvulong cind = 0, rind = 0, c_index;
+    mvulong cind = 0;
     while(tables != NULL){
         if(strcmp(tables->name, tableName) == 0 && rowNum < tables->num_rows)
             for(cind = 0; cind < tables->num_fields; cind++)
@@ -211,7 +211,7 @@ static user_val_t *eval_set(apr_pool_t *p, modmvproc_table *tables,
     char *cur_table, int cur_row, user_val_t *setv){
     long lval;
     double dval;
-    double *tmpd;
+    double *tmpd = (double *)apr_palloc(p, sizeof(double));
     char *left;
     user_val_t *tmpset, *evalset, *first, *iter;
     db_val_t *tmpval;
@@ -389,9 +389,7 @@ static void fill_template(request_rec *r, modmvproc_config *cfg, template_cache_
     fornests[0].table = cur_table;
     fornests[0].cur_row = cur_row;
     fornests[0].num_rows = 0;
-    char tmpTable[256];
-    char tmpField[256];
-    mvulong skip, tmpRow;
+    mvulong skip;
     db_val_t *db_val;
     template_cache_t *incl;
     template_segment_t *piece = tpl->pieces;
@@ -519,7 +517,7 @@ static void fill_template(request_rec *r, modmvproc_config *cfg, template_cache_
 
 static void xml_out(request_rec *r, modmvproc_config *cfg, modmvproc_table *tables){
     char *tchr;
-    mvulong rind, cind, index, blobcount;
+    mvulong rind, cind, blobcount;
     ap_rprintf(r, "%s", "<?xml version='1.0' encoding='UTF-8'?><results>");
     while(tables != NULL){
         ap_rprintf(r,"<table name='%s'>", tables->name);
@@ -557,8 +555,7 @@ static void xml_out(request_rec *r, modmvproc_config *cfg, modmvproc_table *tabl
 }
 
 static void xml_plain(request_rec *r, modmvproc_config *cfg, modmvproc_table *tables){
-    char *tchr;
-    mvulong rind, cind, index;
+    mvulong rind, cind;
     ap_rprintf(r, "%s", "<?xml version='1.0' encoding='UTF-8'?><results>");
     while(tables != NULL){
         ap_rprintf(r,"<table name='%s'>", tables->name);

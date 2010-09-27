@@ -89,7 +89,7 @@ static const char *build_cache(apr_pool_t *p, modmvproc_config *cfg){
         return mysql_error(&mysql);
     char query[1024];
     sprintf(query, "SELECT name, param_list FROM mysql.proc WHERE db='%s' AND type='PROCEDURE'",mysql.db);
-    if(mysql_real_query(&mysql,query,strlen(query)) != 0) return;
+    if(mysql_real_query(&mysql,query,strlen(query)) != 0) return mysql_error(&mysql);
     MYSQL_RES *result = mysql_store_result(&mysql);
     modmvproc_cache *ncache, *last = NULL;
     MYSQL_ROW row;
@@ -449,7 +449,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     };
 
     int status;
-    mvulong index = 0, f, ro, c, col_index, *lens;
+    mvulong f, ro, c, *lens;
     db_col_type *coltypes;
     MYSQL_FIELD *fields;
     
