@@ -288,9 +288,10 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
                 if(strrchr(parsed_param->v.data, '.') != NULL)
                     strcpy(&uploaded[pos], strrchr(parsed_param->v.data, '.'));
                 fstat = apr_file_open(&fptr, uploaded, APR_WRITE | APR_CREATE, APR_OS_DEFAULT, r->pool);
-                if(fstat == APR_SUCCESS)
+                if(fstat == APR_SUCCESS){
                     fstat = apreq_brigade_fwrite(fptr, wlen, parsed_param->upload);
-                apr_file_close(fptr);
+                    apr_file_close(fptr);
+                };
                 if(fstat == APR_SUCCESS){
                     escaped = (char *)apr_palloc(r->pool, (strlen(uploaded) * 2 + 1) * sizeof(char));
                     if(escaped == NULL) OUT_OF_MEMORY;
