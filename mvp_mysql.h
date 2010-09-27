@@ -203,7 +203,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     MYSQL *mysql = db_connect(cfg, r);
     if(mysql == NULL) return NULL;
 	modmvproc_cache *cache_entry = NULL;
-	size_t qsize = 0, add_mem = 0, add_flag = 0, pos = 0;
+	size_t qsize = 0, pos = 0;
     char *escaped;
     char procname[66];
     char uploaded[1024];
@@ -448,7 +448,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         return NULL;
     };
 
-    int status;
+    int status = 0;
     mvulong f, ro, c, *lens;
     db_col_type *coltypes;
     MYSQL_FIELD *fields;

@@ -578,7 +578,7 @@ static void xml_plain(request_rec *r, modmvproc_config *cfg, modmvproc_table *ta
 
 static void json_out(request_rec *r, modmvproc_config *cfg, modmvproc_table *tables){
     char *tchr;
-    mvulong rind, cind, index;
+    mvulong rind, cind;
     ap_rprintf(r, "%s", "{\"table\":[");
     while(tables != NULL){
         ap_rprintf(r,"{\"name\":\"%s\",\"row\":[", tables->name);
