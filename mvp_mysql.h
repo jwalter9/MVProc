@@ -284,7 +284,9 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         }else{
             if(parsed_param->upload != NULL){
                 strcpy(uploaded, tmpnam(NULL));
-                strcat(uploaded, strrchr(parsed_param->v.data, '.'));
+                pos = strlen(uploaded);
+                if(strrchr(parsed_param->v.data, '.') != NULL)
+                    strcpy(&uploaded[pos], strrchr(parsed_param->v.data, '.'));
                 fstat = apr_file_open(&fptr, uploaded, APR_WRITE | APR_CREATE, APR_OS_DEFAULT, r->pool);
                 if(fstat == APR_SUCCESS)
                     fstat = apreq_brigade_fwrite(fptr, wlen, parsed_param->upload);
