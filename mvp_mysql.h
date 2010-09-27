@@ -215,7 +215,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
 
     const apreq_param_t *parsed_param;
     apr_file_t *fptr;
-    apr_off_t *wlen;
+    apr_off_t *wlen = (apr_off_t *)apr_palloc(r->pool, sizeof(apr_off_t));
     apr_status_t fstat;
     db_param_t *param;
     mvulong parm_ind = 0;
@@ -287,7 +287,6 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
                 pos = strlen(uploaded);
                 if(strrchr(parsed_param->v.data, '.') != NULL)
                     strcpy(&uploaded[pos], strrchr(parsed_param->v.data, '.'));
-                fptr = (apr_file_t *)apr_palloc(r->pool, sizeof(apr_file_t *));
                 fstat = apr_file_open(&fptr, uploaded, APR_WRITE | APR_CREATE, APR_OS_DEFAULT, r->pool);
                 if(fstat == APR_SUCCESS){
                     fstat = apreq_brigade_fwrite(fptr, wlen, parsed_param->upload);
