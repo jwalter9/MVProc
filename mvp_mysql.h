@@ -223,7 +223,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     if(cfg->cache != NULL){
         cache_entry = cfg->cache;
         while(cache_entry != NULL){
-            if(apr_strnatcmp(cache_entry->procname,procname) == 0) break;
+            if(strcmp(cache_entry->procname,procname) == 0) break;
             if(cache_entry->next == NULL){
                 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
                     "Request for unknown content: %s", procname);
@@ -264,11 +264,11 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
 
     /* starting size about twice minimum for headroom and changes */
     qsize = 512 + strlen(procname) + (
-        strlen(session_id) + 
-        strlen(r->server->server_hostname) +
-        strlen(r->method) +
-        strlen(r->unparsed_uri) +
-        strlen(r->the_request) +
+        strlen(session_id) * 2 + 
+        strlen(r->server->server_hostname) * 2 +
+        strlen(r->method) * 2 +
+        strlen(r->unparsed_uri) * 2 +
+        strlen(r->the_request) * 2 +
         strlen(r->connection->remote_ip)
         ) * 2; 
     parm_ind = 0;
