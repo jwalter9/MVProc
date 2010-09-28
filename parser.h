@@ -328,7 +328,7 @@ static size_t parse_set(apr_pool_t *p, char *tag, user_val_t *setv){
 
 static template_cache_t *parse_template(apr_pool_t *p, char *tplstr){
     char *nstr = NULL;
-    size_t pos, n;
+    size_t pos;
     template_segment_t *next, *last;
     template_cache_t *tpl = (template_cache_t *)apr_palloc(p, sizeof(template_cache_t));
     if(tpl == NULL) return NULL;
@@ -342,7 +342,7 @@ static template_cache_t *parse_template(apr_pool_t *p, char *tplstr){
     tpl->pieces->next = NULL;
     last = tpl->pieces;
 
-    while(nstr = ap_strstr(tplstr, "<#")){
+    while((nstr = ap_strstr(tplstr, "<#"))){
         if(nstr == NULL) break;
         pos = 0;
         nstr[pos] = '\0';
