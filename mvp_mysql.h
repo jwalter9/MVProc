@@ -95,6 +95,7 @@ static const char *build_cache(apr_pool_t *p, modmvproc_config *cfg){
     MYSQL_ROW row;
     while(NULL != (row = mysql_fetch_row(result))){
         ncache = (modmvproc_cache *)apr_palloc(p, sizeof(modmvproc_cache));
+        ncache->next = NULL;
         fill_proc_struct(p, (char *)row[0], (char *)row[1], ncache);
         if(last != NULL) last->next = ncache;
         else cfg->cache = ncache;
@@ -216,6 +217,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     const apreq_param_t *parsed_param;
     apr_file_t *fptr;
     apr_off_t *wlen = (apr_off_t *)apr_palloc(r->pool, sizeof(apr_off_t));
+    if(wlen == NULL) OUT_OF_MEMORY;
     apr_status_t fstat;
     db_param_t *param;
     mvulong parm_ind = 0;
