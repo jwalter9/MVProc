@@ -62,6 +62,9 @@ static void set_user_val(apr_pool_t *p, modmvproc_table *tables,
                 ncol[cind].name = tables->cols[cind].name;
                 ncol[cind].vals = tables->cols[cind].vals;
             };
+            ncol[cind].name = 
+                (char *)apr_palloc(p, (strlen(tag) + 1) * sizeof(char));
+            strcpy(ncol[cind].name, tag);
             ncol[cind].vals = (db_val_t *)apr_palloc(p, (sizeof(db_val_t)));
             if(ncol[cind].vals == NULL) return;
             ncol[cind].vals[0].type = val->type;
@@ -74,12 +77,24 @@ static void set_user_val(apr_pool_t *p, modmvproc_table *tables,
             ntable = (modmvproc_table *)apr_palloc(p, sizeof(modmvproc_table));
             if(ntable == NULL) return;
             ntable->name = (char *)apr_palloc(p, 2 * sizeof(char));
+            if(ntable->name == NULL) return;
             strcpy(ntable->name, "@");
             ntable->num_rows = 1;
-            ntable->num_fields = 0;
-            ntable->cols = NULL;
+            ntable->num_fields = 1;
+            ntable->cols = (db_col_t *)apr_palloc(p, sizeof(db_col_t));
+            if(ntable->cols == NULL) return;
+            ntable->cols[0].name = 
+                (char *)apr_palloc(p, (strlen(tag) + 1) * sizeof(char));
+            if(ntable->cols[0].name == NULL) return;
+            strcpy(ntable->cols[0].name, tag);
+            ntable->cols[0].vals = (db_val_t *)apr_palloc(p, (sizeof(db_val_t)));
+            if(ntable->cols[0].vals == NULL) return;
+            ntable->cols[0].vals[0].type = val->type;
+            ntable->cols[0].vals[0].val = val->tag;
+            ntable->cols[0].vals[0].size = strlen(val->tag);
             ntable->next = NULL;
             tables->next = ntable;
+            return;
         };
         tables = tables->next;
     };
