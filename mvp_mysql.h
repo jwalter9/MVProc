@@ -563,6 +563,12 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
             return NULL;
         };
     }while(status == 0);
+    
+    if(tables->name == NULL){
+        tables->name = (char *)apr_palloc(r->pool, 10 * sizeof(char));
+        if(tables->name == NULL) OUT_OF_MEMORY;
+        strcpy(tables->name, "no_result");
+    };
 
     db_cleanup((mvpool_t *)cfg->pool, mysql);
     return tables;
