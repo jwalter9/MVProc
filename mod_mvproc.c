@@ -31,7 +31,9 @@ static db_val_t *lookup(apr_pool_t *p, modmvproc_table *tables,
     };
     mvulong cind = 0;
     while(tables != NULL){
-        if(strcmp(tables->name, tableName) == 0 && rowNum < tables->num_rows)
+        if(tables->name != NULL && 
+            strcmp(tables->name, tableName) == 0 && 
+            rowNum < tables->num_rows)
             for(cind = 0; cind < tables->num_fields; cind++)
             if(strcmp(tables->cols[cind].name, colName) == 0)
                 return &tables->cols[cind].vals[rowNum];
