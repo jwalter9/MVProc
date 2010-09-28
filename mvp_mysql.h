@@ -459,6 +459,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     (modmvproc_table *)apr_palloc(r->pool, sizeof(modmvproc_table));
     if(next == NULL) OUT_OF_MEMORY;
     next->next = NULL;
+    next->name = NULL;
     modmvproc_table *tables = next;
     modmvproc_table *last = NULL;
     
