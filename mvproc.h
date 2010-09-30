@@ -24,9 +24,11 @@
 #include "string.h"
 #include "time.h"
 #include "math.h"
+#include "unistd.h"
 #include "sys/stat.h" 
 #include "httpd.h"
 #include "http_config.h"
+#include "http_protocol.h"
 #include "http_log.h"
 #include "util_md5.h"
 #include "apr.h"
@@ -35,6 +37,7 @@
 #include "apreq.h"
 #include "apreq_module.h"
 #include "apreq2/apreq_module_apache2.h"
+#include "apreq2/apreq_util.h"
 
 typedef unsigned long mvulong;
 
@@ -187,5 +190,89 @@ typedef struct {
     mvulong num_rows;
     template_segment_t *start_piece;
 } fornest_tracker;
+
+static db_val_t *lookup(apr_pool_t *p, modmvproc_table *tables, 
+                    const char *tableName, const char *colName, mvulong rowNum){
+    if(strcmp(colName, "CURRENT_ROW") == 0){
+        db_val_t *ret_val = (db_val_t *)apr_palloc(p, (sizeof(db_val_t)));
+        if(ret_val == NULL) return NULL;
+        ret_val->val = (char *)apr_palloc(p, 20 * sizeof(char));
+        sprintf(ret_val->val, "%lu", rowNum);
+        ret_val->type = _LONG;
+        return ret_val;
+    };
+    mvulong cind = 0;
+    while(tables != NULL){
+        if(tables->name != NULL && 
+            strcmp(tables->name, tableName) == 0 && 
+            rowNum < tables->num_rows)
+            for(cind = 0; cind < tables->num_fields; cind++)
+            if(strcmp(tables->cols[cind].name, colName) == 0)
+                return &tables->cols[cind].vals[rowNum];
+        tables = tables->next;
+    };
+    return NULL;
+}
+
+static void set_user_val(apr_pool_t *p, modmvproc_table *tables, 
+                         char *tag, user_val_t *val){
+    mvulong cind = 0;
+    modmvproc_table *ntable;
+    db_col_t *ncol;
+    while(tables != NULL){
+        if(strcmp(tables->name, "@") == 0){
+            for(cind = 0; cind < tables->num_fields; cind++){
+                if(strcmp(tables->cols[cind].name, tag) == 0){
+                    tables->cols[cind].vals[0].val = val->tag;
+                    tables->cols[cind].vals[0].type = val->type;
+                    tables->cols[cind].vals[0].size = strlen(val->tag);
+                    return;
+                };
+            };
+            tables->num_fields++;
+            ncol = (db_col_t *)apr_palloc(p, 
+                tables->num_fields * sizeof(db_col_t));
+            for(cind = 0; cind < tables->num_fields - 1; cind++){
+                ncol[cind].name = tables->cols[cind].name;
+                ncol[cind].vals = tables->cols[cind].vals;
+            };
+            ncol[cind].name = 
+                (char *)apr_palloc(p, (strlen(tag) + 1) * sizeof(char));
+            strcpy(ncol[cind].name, tag);
+            ncol[cind].vals = (db_val_t *)apr_palloc(p, (sizeof(db_val_t)));
+            if(ncol[cind].vals == NULL) return;
+            ncol[cind].vals[0].type = val->type;
+            ncol[cind].vals[0].val = val->tag;
+            ncol[cind].vals[0].size = strlen(val->tag);
+            tables->cols = ncol;
+            return;
+        };
+        if(tables->next == NULL){
+            ntable = (modmvproc_table *)apr_palloc(p, sizeof(modmvproc_table));
+            if(ntable == NULL) return;
+            ntable->name = (char *)apr_palloc(p, 2 * sizeof(char));
+            if(ntable->name == NULL) return;
+            strcpy(ntable->name, "@");
+            ntable->num_rows = 1;
+            ntable->num_fields = 1;
+            ntable->cols = (db_col_t *)apr_palloc(p, sizeof(db_col_t));
+            if(ntable->cols == NULL) return;
+            ntable->cols[0].name = 
+                (char *)apr_palloc(p, (strlen(tag) + 1) * sizeof(char));
+            if(ntable->cols[0].name == NULL) return;
+            strcpy(ntable->cols[0].name, tag);
+            ntable->cols[0].vals = (db_val_t *)apr_palloc(p, (sizeof(db_val_t)));
+            if(ntable->cols[0].vals == NULL) return;
+            ntable->cols[0].vals[0].type = val->type;
+            ntable->cols[0].vals[0].val = val->tag;
+            ntable->cols[0].vals[0].size = strlen(val->tag);
+            ntable->next = NULL;
+            tables->next = ntable;
+            return;
+        };
+        tables = tables->next;
+    };
+}
+
 
 #endif
