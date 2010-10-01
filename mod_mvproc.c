@@ -176,10 +176,10 @@ static int modmvproc_handler (request_rec *r){
     if(cfg->session == 'Y' || cfg->session == 'y'){
         session_cookie = apreq_jar_get(apreq, "MVPSESSION");
         if(session_cookie == NULL){
-            session_val = (char *)apr_palloc(r->pool, 35 * sizeof(char));
+            session_val = (char *)apr_palloc(r->pool, 36 * sizeof(char));
             time_t tim = time(NULL);
             sprintf(session_val,"%s",r->connection->remote_ip);
-            strftime(&session_val[strlen(session_val)],19,"%Y-%m-%d %H:%M:%S",localtime(&tim));
+            strftime(&session_val[strlen(session_val)],20,"%Y-%m-%d %H:%M:%S",localtime(&tim));
             strncpy(session_val, ap_md5(apreq->pool, (unsigned char *)session_val), 32);
             session_val[32] = '\0';
         }else{
