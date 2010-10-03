@@ -367,6 +367,7 @@ static void fill_template(request_rec *r, modmvproc_config *cfg, template_cache_
                 };
             }else{
                 piece = skip_ahead(piece, _IF, _ENDIF);
+                continue;
             };
             break;
         case _ELSE:
@@ -375,6 +376,7 @@ static void fill_template(request_rec *r, modmvproc_config *cfg, template_cache_
                 ap_rprintf(r, "%s", piece->follow_text);
             }else{
                 piece = skip_ahead(piece, _IF, _ENDIF);
+                continue;
             };
             break;
         case _ENDIF:
@@ -390,10 +392,11 @@ static void fill_template(request_rec *r, modmvproc_config *cfg, template_cache_
                 while(tmpTables != NULL){
                     if(strcmp(tmpTables->name, piece->tag) == 0){
                         if(tmpTables->num_rows > 0){
+                            fornests[fordepth].cur_row = cur_row;
                             fordepth++;
                             fornests[fordepth].table = piece->tag;
                             fornests[fordepth].num_rows = tmpTables->num_rows;
-                            fornests[fordepth].cur_row = cur_row;
+                            fornests[fordepth].cur_row = 0;
                             fornests[fordepth].start_piece = piece;
                             cur_table = piece->tag;
                             cur_row = 0;
@@ -406,6 +409,7 @@ static void fill_template(request_rec *r, modmvproc_config *cfg, template_cache_
                 };
                 if(skip == 1){
                     piece = skip_ahead(piece, _LOOP, _ENDLOOP);
+                    ap_rprintf(r, "%s", piece->follow_text);
                 };
             }else{
                 piece = skip_ahead(piece, _LOOP, _ENDLOOP);
@@ -422,6 +426,9 @@ static void fill_template(request_rec *r, modmvproc_config *cfg, template_cache_
                     cur_row = fornests[fordepth].cur_row;
                 };
                 ap_rprintf(r, "%s", piece->follow_text);
+            }else{
+                ap_rprintf(r, "%s", "Missing ENDIF");
+                return;
             };
             break;
         case _INCLUDE:
