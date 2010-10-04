@@ -36,6 +36,7 @@ typedef struct{
 static void fill_proc_struct(apr_pool_t *p, const char *pname, 
                              const char *paramList, modmvproc_cache *cache_entry){
     cache_entry->procname = (char *)apr_palloc(p, (strlen(pname)+1) * sizeof(char));
+    cache_entry->param_list = NULL;
     strcpy(cache_entry->procname, pname);
     db_param_t *param = NULL, *next_param = NULL;
     inout_t inout = IN;
