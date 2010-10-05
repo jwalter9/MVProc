@@ -273,6 +273,15 @@ static const char *set_out_type(cmd_parms *parms, void *mconfig, const char *arg
     return NULL;
 }
 
+static const char *set_error_tpl(cmd_parms *parms, void *mconfig, const char *arg){
+    modmvproc_config *cfg = ap_get_module_config(parms->server->module_config, &mvproc_module);
+	cfg->error_tpl = (char *)apr_palloc(parms->server->process->pconf, 
+	                                    (strlen(arg)+1) * sizeof(char));
+	if(cfg->error_tpl == NULL) return "OUT OF MEMORY";
+    strcpy(cfg->error_tpl, arg);
+    return NULL;
+}
+
 static const command_rec modmvproc_cmds[] = {
     AP_INIT_TAKE1("mvprocSession", set_session, NULL, RSRC_CONF, 
         "Session cookie: Y or N."),
@@ -286,6 +295,8 @@ static const command_rec modmvproc_cmds[] = {
         "The number of connections to maintain."),
     AP_INIT_TAKE1("mvprocOutputStyle", set_out_type, NULL, RSRC_CONF, 
         "The default output: PLAIN, JSON, or MIXED"),
+    AP_INIT_TAKE1("mvprocErrTemplate", set_error_tpl, NULL, RSRC_CONF, 
+        "The template for displaying db errors."),
 	{NULL}
 };
 
@@ -297,6 +308,7 @@ static void *create_modmvproc_config(apr_pool_t *p, server_rec *s){
 	newcfg->pool = NULL;
 	newcfg->group = NULL;
 	newcfg->output = _XML_MIXED;
+	newcfg->error_tpl = NULL;
 	return newcfg;
 }
 

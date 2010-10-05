@@ -182,6 +182,7 @@ typedef struct {
 	template_cache_t *template_cache;
 	void *pool;
 	out_type output;
+	char *error_tpl;
 } modmvproc_config;
 
 typedef struct {
