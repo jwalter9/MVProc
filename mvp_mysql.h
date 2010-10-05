@@ -245,15 +245,15 @@ static modmvproc_table *dbError(modmvproc_config *cfg, request_rec *r,
             "Out of memory: apr_palloc returned NULL");
         return NULL;
     };
+    ret->cols[0].vals[0].size = strlen(err);
     ret->cols[0].vals[0].val = 
-        (char *)apr_palloc(r->pool, (strlen(err) + 1) * sizeof(char));
+        (char *)apr_palloc(r->pool, (ret->cols[0].vals[0].size + 1) * sizeof(char));
     if(ret->cols[0].vals[0].val == NULL){
         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
             "Out of memory: apr_palloc returned NULL");
         return NULL;
     };
     strcpy(ret->cols[0].vals[0].val, err);
-    ret->cols[0].vals[0].size = strlen(err);
     ret->cols[0].vals[0].type = _BLOB;
 
     if(cfg->template_dir != NULL && cfg->error_tpl != NULL){
@@ -295,9 +295,17 @@ static modmvproc_table *dbError(modmvproc_config *cfg, request_rec *r,
                 "Out of memory: apr_palloc returned NULL");
             return NULL;
         };
-        ret->cols[0].vals[0].val = cfg->error_tpl;
-        ret->cols[0].vals[0].size = strlen(cfg->error_tpl);
-        ret->cols[0].vals[0].type = _BLOB;
+        ret->next->cols[0].vals[0].size = strlen(cfg->error_tpl);
+        ret->next->cols[0].vals[0].val = 
+            (char *)apr_palloc(r->pool, 
+                (ret->next->cols[0].vals[0].size + 1) * sizeof(char));
+        if(ret->next->cols[0].vals[0].val == NULL){
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                "Out of memory: apr_palloc returned NULL");
+            return NULL;
+        };
+        strcpy(ret->next->cols[0].vals[0].val, cfg->error_tpl);
+        ret->next->cols[0].vals[0].type = _BLOB;
     };
     return ret;
 }

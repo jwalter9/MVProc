@@ -103,7 +103,8 @@ static void json_out(request_rec *r, modmvproc_config *cfg, modmvproc_table *tab
     strftime(tchr,20,"%Y-%m-%d %H:%M:%S",localtime(&tim));
     ap_rprintf(r, "{\"server_datetime\":\"%s\",\"table\":[", tchr);
     while(tables != NULL){
-        ap_rprintf(r,"{\"name\":\"%s\",\"row\":[", tables->name);
+        ap_rprintf(r,"{\"name\":\"%s\"%s", tables->name,
+            tables->num_rows > 0 ? ",\"row\":[": "");
         for(rind = 0; rind < tables->num_rows; rind++){
             ap_rprintf(r, "%s", "{");
             for(cind = 0; cind < tables->num_fields; cind++){
