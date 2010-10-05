@@ -27,7 +27,7 @@ apreq_module is required and must be loaded prior to loading mvproc, like so:
 LoadModule apreq_module /usr/lib/apache2/modules/mod_apreq2.so
 LoadModule mvproc_module /usr/lib/apache2/modules/mod_mvproc.so
 
-There are six (6) configuration directives for mod_mvproc:
+There are seven (7) configuration directives for mod_mvproc:
 
 mvprocSession (Y or N) - sets session behavior. If sessions are enabled (Y), 
                          the module will supply called stored procedures with a 
@@ -63,6 +63,10 @@ mvprocDbPoolSize (number) - The number of connections to pool. If this is not
                          what you want in a process-driven webserver.
 
 mvprocOutputStyle (MIXED | PLAIN | JSON) - See the Output section below.
+
+mvprocErrTemplate - If mvprocTemplateDir is configured, this is the name of the
+                         template to render when there's a database error.
+                         The error can be accessed as <# status.error #>
                          
 Requests
 --------
