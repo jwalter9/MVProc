@@ -205,6 +205,103 @@ static size_t escapeUserVar(MYSQL *m, const char *n, const char *p, char *q){
     return strlen(q);
 }
 
+static modmvproc_table *dbError(modmvproc_config *cfg, request_rec *r, 
+                                    const char *err){
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MYSQL Error: %s", err);
+
+    modmvproc_table *ret = 
+    (modmvproc_table *)apr_palloc(r->pool, sizeof(modmvproc_table));
+    if(ret == NULL){
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+            "Out of memory: apr_palloc returned NULL");
+        return NULL;
+    };
+    ret->next = NULL;
+    ret->name = (char *)apr_palloc(r->pool, 7 * sizeof(char));
+    if(ret->name == NULL){
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+            "Out of memory: apr_palloc returned NULL");
+        return NULL;
+    };
+    strcpy(ret->name, "status");
+    ret->num_rows = 1;
+    ret->num_fields = 1;
+    ret->cols = (db_col_t *)apr_palloc(r->pool, sizeof(db_col_t));
+    if(ret->cols == NULL){
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+            "Out of memory: apr_palloc returned NULL");
+        return NULL;
+    };
+    ret->cols[0].name = (char *)apr_palloc(r->pool, 7 * sizeof(char));
+    if(ret->cols[0].name == NULL){
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+            "Out of memory: apr_palloc returned NULL");
+        return NULL;
+    };
+    strcpy(ret->cols[0].name, "error");
+    ret->cols[0].vals = (db_val_t *)apr_palloc(r->pool, sizeof(db_val_t));
+    if(ret->cols[0].vals == NULL){
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+            "Out of memory: apr_palloc returned NULL");
+        return NULL;
+    };
+    ret->cols[0].vals[0].val = 
+        (char *)apr_palloc(r->pool, (strlen(err) + 1) * sizeof(char));
+    if(ret->cols[0].vals[0].val == NULL){
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+            "Out of memory: apr_palloc returned NULL");
+        return NULL;
+    };
+    strcpy(ret->cols[0].vals[0].val, err);
+    ret->cols[0].vals[0].size = strlen(err);
+    ret->cols[0].vals[0].type = _BLOB;
+
+    if(cfg->template_dir != NULL && cfg->error_tpl != NULL){
+        ret->next =
+        (modmvproc_table *)apr_palloc(r->pool, sizeof(modmvproc_table));
+        if(ret->next == NULL){
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                "Out of memory: apr_palloc returned NULL");
+            return NULL;
+        };
+        ret->next->next = NULL;
+        ret->next->name = (char *)apr_palloc(r->pool, 9 * sizeof(char));
+        if(ret->next->name == NULL){
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                "Out of memory: apr_palloc returned NULL");
+            return NULL;
+        };
+        strcpy(ret->next->name, "PROC_OUT");
+        ret->next->num_rows = 1;
+        ret->next->num_fields = 1;
+        ret->next->cols = (db_col_t *)apr_palloc(r->pool, sizeof(db_col_t));
+        if(ret->next->cols == NULL){
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                "Out of memory: apr_palloc returned NULL");
+            return NULL;
+        };
+        ret->next->cols[0].name = 
+            (char *)apr_palloc(r->pool, 13 * sizeof(char));
+        if(ret->next->cols[0].name == NULL){
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                "Out of memory: apr_palloc returned NULL");
+            return NULL;
+        };
+        strcpy(ret->next->cols[0].name, "mvp_template");
+        ret->next->cols[0].vals = 
+            (db_val_t *)apr_palloc(r->pool, sizeof(db_val_t));
+        if(ret->next->cols[0].vals == NULL){
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                "Out of memory: apr_palloc returned NULL");
+            return NULL;
+        };
+        ret->cols[0].vals[0].val = cfg->error_tpl;
+        ret->cols[0].vals[0].size = strlen(cfg->error_tpl);
+        ret->cols[0].vals[0].type = _BLOB;
+    };
+    return ret;
+}
+
 static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
                                     apreq_handle_t *apreq, 
                                     const char *session_id, int *errback){
@@ -248,9 +345,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         sprintf(proc_query, "SELECT name, param_list FROM mysql.proc WHERE db='%s' AND type='PROCEDURE' AND name='%s'",
             mysql->db, procname);
         if(mysql_real_query(mysql,proc_query,strlen(proc_query)) != 0){
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                "MYSQL Error (proc lookup query): %s", mysql_error(mysql));
-            return NULL;
+            return dbError(cfg, r, mysql_error(mysql));
         };
         result = mysql_store_result(mysql);
         if(mysql_num_rows(result) < 1){
@@ -262,10 +357,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         };
         row = mysql_fetch_row(result);
         if(row == NULL){
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                "MYSQL Error (proc lookup row fetch): %s",mysql_error(mysql));
-            mysql_free_result(result);
-            return NULL;
+            return dbError(cfg, r, mysql_error(mysql));
         };
         cache_entry = (modmvproc_cache *)apr_palloc(r->pool, (sizeof(modmvproc_cache)));
         if(cache_entry == NULL) OUT_OF_MEMORY;
@@ -417,9 +509,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     if(qsize > 0) sprintf(&query[pos],";");
     
     if(mysql_real_query(mysql,query,strlen(query)) != 0){
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-            "MYSQL Error (CALL query): %s", mysql_error(mysql));
-        return NULL;
+        return dbError(cfg, r, mysql_error(mysql));
     };
 
     int status = 0;
@@ -531,9 +621,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         };
         status = mysql_next_result(mysql);
         if(status > 0){
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MYSQL Error (next result): %s", mysql_error(mysql));
-            mysql_close(mysql);
-            return NULL;
+            return dbError(cfg, r, mysql_error(mysql));
         };
     }while(status == 0);
     
