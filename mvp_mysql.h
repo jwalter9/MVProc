@@ -23,8 +23,8 @@
 
 #define OUT_OF_MEMORY \
     { ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "Out of memory: apr_palloc returned NULL"); \
-      mysql_close(mysql); \
-    return NULL; }
+      db_cleanup((mvpool_t *)cfg->pool, mysql); \
+      return NULL; }
 
 typedef struct{
     MYSQL *connections;
@@ -206,107 +206,62 @@ static size_t escapeUserVar(MYSQL *m, const char *n, const char *p, char *q){
 }
 
 static modmvproc_table *dbError(modmvproc_config *cfg, request_rec *r, 
-                                    const char *err){
+                                MYSQL *mysql){
+    const char *err = mysql_error(mysql);
     ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MYSQL Error: %s", err);
 
     modmvproc_table *ret = 
     (modmvproc_table *)apr_palloc(r->pool, sizeof(modmvproc_table));
-    if(ret == NULL){
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-            "Out of memory: apr_palloc returned NULL");
-        return NULL;
-    };
+    if(ret == NULL) OUT_OF_MEMORY;
     ret->next = NULL;
     ret->name = (char *)apr_palloc(r->pool, 7 * sizeof(char));
-    if(ret->name == NULL){
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-            "Out of memory: apr_palloc returned NULL");
-        return NULL;
-    };
+    if(ret->name == NULL) OUT_OF_MEMORY;
     strcpy(ret->name, "status");
     ret->num_rows = 1;
     ret->num_fields = 1;
     ret->cols = (db_col_t *)apr_palloc(r->pool, sizeof(db_col_t));
-    if(ret->cols == NULL){
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-            "Out of memory: apr_palloc returned NULL");
-        return NULL;
-    };
+    if(ret->cols == NULL) OUT_OF_MEMORY;
     ret->cols[0].name = (char *)apr_palloc(r->pool, 7 * sizeof(char));
-    if(ret->cols[0].name == NULL){
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-            "Out of memory: apr_palloc returned NULL");
-        return NULL;
-    };
+    if(ret->cols[0].name == NULL) OUT_OF_MEMORY;
     strcpy(ret->cols[0].name, "error");
     ret->cols[0].vals = (db_val_t *)apr_palloc(r->pool, sizeof(db_val_t));
-    if(ret->cols[0].vals == NULL){
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-            "Out of memory: apr_palloc returned NULL");
-        return NULL;
-    };
+    if(ret->cols[0].vals == NULL) OUT_OF_MEMORY;
     ret->cols[0].vals[0].size = strlen(err);
     ret->cols[0].vals[0].val = 
         (char *)apr_palloc(r->pool, (ret->cols[0].vals[0].size + 1) * sizeof(char));
-    if(ret->cols[0].vals[0].val == NULL){
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-            "Out of memory: apr_palloc returned NULL");
-        return NULL;
-    };
+    if(ret->cols[0].vals[0].val == NULL) OUT_OF_MEMORY;
     strcpy(ret->cols[0].vals[0].val, err);
     ret->cols[0].vals[0].type = _BLOB;
 
     if(cfg->template_dir != NULL && cfg->error_tpl != NULL){
         ret->next =
         (modmvproc_table *)apr_palloc(r->pool, sizeof(modmvproc_table));
-        if(ret->next == NULL){
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                "Out of memory: apr_palloc returned NULL");
-            return NULL;
-        };
+        if(ret->next == NULL) OUT_OF_MEMORY;
         ret->next->next = NULL;
         ret->next->name = (char *)apr_palloc(r->pool, 9 * sizeof(char));
-        if(ret->next->name == NULL){
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                "Out of memory: apr_palloc returned NULL");
-            return NULL;
-        };
+        if(ret->next->name == NULL) OUT_OF_MEMORY;
         strcpy(ret->next->name, "PROC_OUT");
         ret->next->num_rows = 1;
         ret->next->num_fields = 1;
         ret->next->cols = (db_col_t *)apr_palloc(r->pool, sizeof(db_col_t));
-        if(ret->next->cols == NULL){
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                "Out of memory: apr_palloc returned NULL");
-            return NULL;
-        };
+        if(ret->next->cols == NULL) OUT_OF_MEMORY;
         ret->next->cols[0].name = 
             (char *)apr_palloc(r->pool, 13 * sizeof(char));
-        if(ret->next->cols[0].name == NULL){
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                "Out of memory: apr_palloc returned NULL");
-            return NULL;
-        };
+        if(ret->next->cols[0].name == NULL) OUT_OF_MEMORY;
         strcpy(ret->next->cols[0].name, "mvp_template");
         ret->next->cols[0].vals = 
             (db_val_t *)apr_palloc(r->pool, sizeof(db_val_t));
-        if(ret->next->cols[0].vals == NULL){
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                "Out of memory: apr_palloc returned NULL");
-            return NULL;
-        };
+        if(ret->next->cols[0].vals == NULL) OUT_OF_MEMORY;
         ret->next->cols[0].vals[0].size = strlen(cfg->error_tpl);
         ret->next->cols[0].vals[0].val = 
             (char *)apr_palloc(r->pool, 
                 (ret->next->cols[0].vals[0].size + 1) * sizeof(char));
-        if(ret->next->cols[0].vals[0].val == NULL){
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                "Out of memory: apr_palloc returned NULL");
-            return NULL;
-        };
+        if(ret->next->cols[0].vals[0].val == NULL) OUT_OF_MEMORY;
         strcpy(ret->next->cols[0].vals[0].val, cfg->error_tpl);
         ret->next->cols[0].vals[0].type = _BLOB;
     };
+
+    db_cleanup((mvpool_t *)cfg->pool, mysql);
     return ret;
 }
 
@@ -353,7 +308,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         sprintf(proc_query, "SELECT name, param_list FROM mysql.proc WHERE db='%s' AND type='PROCEDURE' AND name='%s'",
             mysql->db, procname);
         if(mysql_real_query(mysql,proc_query,strlen(proc_query)) != 0){
-            return dbError(cfg, r, mysql_error(mysql));
+            return dbError(cfg, r, mysql);
         };
         result = mysql_store_result(mysql);
         if(mysql_num_rows(result) < 1){
@@ -365,7 +320,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         };
         row = mysql_fetch_row(result);
         if(row == NULL){
-            return dbError(cfg, r, mysql_error(mysql));
+            return dbError(cfg, r, mysql);
         };
         cache_entry = (modmvproc_cache *)apr_palloc(r->pool, (sizeof(modmvproc_cache)));
         if(cache_entry == NULL) OUT_OF_MEMORY;
@@ -517,7 +472,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     if(qsize > 0) sprintf(&query[pos],";");
     
     if(mysql_real_query(mysql,query,strlen(query)) != 0){
-        return dbError(cfg, r, mysql_error(mysql));
+        return dbError(cfg, r, mysql);
     };
 
     int status = 0;
@@ -629,7 +584,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         };
         status = mysql_next_result(mysql);
         if(status > 0){
-            return dbError(cfg, r, mysql_error(mysql));
+            return dbError(cfg, r, mysql);
         };
     }while(status == 0);
     
