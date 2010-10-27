@@ -343,9 +343,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         uploaded[0] = '\0';
         parsed_param = apreq_param(apreq,param->name);
         if(parsed_param == NULL){
-            inparms[parm_ind].val = (char *)apr_palloc(r->pool, sizeof(char));
-            if(inparms[parm_ind].val == NULL) OUT_OF_MEMORY;
-            inparms[parm_ind].val[0] = '\0';
+            inparms[parm_ind].val = NULL;
         }else{
             if(parsed_param->upload != NULL){
                 strcpy(uploaded, tmpnam(NULL));
@@ -375,10 +373,18 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         };
         switch(param->in_or_out){
         case IN:
-            qsize += strlen(inparms[parm_ind].val) + 4;
+            if(inparms[parm_ind].val == NULL){
+                qsize += 6;
+            }else{
+                qsize += strlen(inparms[parm_ind].val) + 4;
+            };
             break;
         case INOUT:
-            qsize += strlen(param->name) * 2 + strlen(inparms[parm_ind].val) + 17;
+            if(inparms[parm_ind].val == NULL){
+                qsize += strlen(param->name) * 2 + 19;
+            }else{
+                qsize += strlen(param->name) * 2 + strlen(inparms[parm_ind].val) + 17;
+            };
             break;
         case OUT:
             qsize += strlen(param->name) * 2 + 17;
@@ -396,8 +402,12 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     for(parm_ind = 0; parm_ind < cache_entry->num_params; parm_ind++){
         switch(inparms[parm_ind].param->in_or_out){
         case INOUT:
-            sprintf(&query[pos],"SET @%s = '%s'; ",
-                inparms[parm_ind].param->name,inparms[parm_ind].val);
+            if(inparms[parm_ind].val == NULL){
+                sprintf(&query[pos],"SET @%s = NULL; ", inparms[parm_ind].param->name);
+            }else{
+                sprintf(&query[pos],"SET @%s = '%s'; ",
+                    inparms[parm_ind].param->name,inparms[parm_ind].val);
+            };
             pos = strlen(query);
             break;
         case OUT:
@@ -425,7 +435,11 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     for(parm_ind = 0; parm_ind < cache_entry->num_params; parm_ind++){
         switch(inparms[parm_ind].param->in_or_out){
         case IN:
-            sprintf(&query[pos],"'%s'", inparms[parm_ind].val);
+            if(inparms[parm_ind].val == NULL){
+                strcpy(&query[pos], "NULL");
+            }else{
+                sprintf(&query[pos],"'%s'", inparms[parm_ind].val);
+            };
             pos = strlen(query);
             break;
         case INOUT:
