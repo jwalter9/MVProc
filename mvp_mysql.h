@@ -52,6 +52,8 @@ static void fill_proc_struct(apr_pool_t *p, const char *pname,
         }else if(strncmp(&paramList[pos], "OUT ", 4) == 0 || strncmp(&paramList[pos], "out ", 4) == 0){
             inout = OUT;
             pos += 3;
+        }else{
+            inout = IN;
         };
         pos += strspn(&paramList[pos], " \t\r\n\0");
         if(pos >= len) break;
