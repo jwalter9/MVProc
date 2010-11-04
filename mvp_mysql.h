@@ -109,6 +109,16 @@ static const char *build_cache(apr_pool_t *p, modmvproc_config *cfg){
     return NULL;
 }
 
+apr_status_t cleanup_connections(void *d){
+    modmvproc_config *cfg = (modmvproc_config *)d;
+    mvpool_t *pool = (mvpool_t*)cfg->pool;
+    unsigned long iter;
+    for(iter = 0; iter < pool->size; iter++){
+        mysql_close(&pool->connections[iter]);
+    };
+    return APR_SUCCESS;
+}
+
 static const char *make_pool(apr_pool_t *p, modmvproc_config *cfg, unsigned long num){
     unsigned long iter;
     mvpool_t *newpool;
@@ -134,6 +144,7 @@ static const char *make_pool(apr_pool_t *p, modmvproc_config *cfg, unsigned long
             return mysql_error(&newpool->connections[iter]);
     };
     cfg->pool = newpool;
+    apr_pool_cleanup_register(p, cfg, cleanup_connections, NULL);
     return NULL;
 }
 
@@ -164,6 +175,7 @@ static MYSQL *db_connect(modmvproc_config *cfg, request_rec *r){
                     thepool->locks[iter] = 'l';
                     apr_thread_mutex_unlock(thepool->mutex);
                     if(mysql_ping(mysql) == 0) return mysql;
+                    mysql_close(mysql);
                     mysql_init(mysql);
                     if(mysql_options(mysql, MYSQL_READ_DEFAULT_GROUP, cfg->group) != 0){
                         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "MYSQL Options Failed");
