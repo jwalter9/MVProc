@@ -62,7 +62,8 @@ mvprocDbPoolSize (number) - The number of connections to pool. If this is not
                          pooling code uses a mutex, and this is probably not 
                          what you want in a process-driven webserver.
 
-mvprocOutputStyle (MIXED | PLAIN | JSON) - See the Output section below.
+mvprocOutputStyle (MIXED | PLAIN | JSON | EASY_XML | EASY_JSON) - 
+                         See the Output section below.
 
 mvprocErrTemplate - If mvprocTemplateDir is configured, this is the name of the
                          template to render when there's a database error.
@@ -139,9 +140,18 @@ are shown as children of rows  with CDATA encapsulated values.
 The PLAIN output type populates the name attribute of the table tags, but all
 columns are rendered as CDATA encapsulated child elements.
 
-The other option is JSON, which outputs an array of table objects, each of
+The EASY_XML output type simply uses the table name as the name of the table
+element. This is easier to check than looping through the table array checking
+the names, hence the "EASY".
+
+Another option is JSON, which outputs an array of table objects, each of
 which owns a name value and an array of row objects each of which owns one
 named value per column. Most ajax libraries support this format.
+
+EASY_JSON makes the result easier to work with by creating an object with
+members named for the tables which are each arrays of row objects. So finding
+an OUT param called "stat" in javascript would look like: 
+<result object var>.PROC_OUT[0].stat
 
 All result sets are output, as well as a "table" called PROC_OUT, which holds 
 all INOUT and OUT values as well as mvp_session and mvp_template values. 
