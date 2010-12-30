@@ -134,19 +134,18 @@ static void easier_json_out(request_rec *r, modmvproc_config *cfg, modmvproc_tab
     strftime(tchr,20,"%Y-%m-%d %H:%M:%S",localtime(&tim));
     ap_rprintf(r, "{\"server_datetime\":\"%s\"", tchr);
     while(tables != NULL){
-        if(tables->num_rows < 1){
-            tables = tables->next;
-            continue;
-        };
-        ap_rprintf(r,",\"%s\":[", tables->name);
-        for(rind = 0; rind < tables->num_rows; rind++){
-            ap_rprintf(r, "%s", "{");
-            for(cind = 0; cind < tables->num_fields; cind++){
-                tchr = ap_escape_quotes(r->pool, tables->cols[cind].vals[rind].val);
-                ap_rprintf(r,"\"%s\":\"%s\"%s",tables->cols[cind].name,tchr,
-                    tables->num_fields - cind > 1 ? "," : "");
+        if(tables->num_rows >0 ){
+            ap_rprintf(r,",\"%s\":[", tables->name);
+            for(rind = 0; rind < tables->num_rows; rind++){
+                ap_rprintf(r, "%s", "{");
+                for(cind = 0; cind < tables->num_fields; cind++){
+                    tchr = ap_escape_quotes(r->pool, 
+                        tables->cols[cind].vals[rind].val);
+                    ap_rprintf(r,"\"%s\":\"%s\"%s",tables->cols[cind].name,tchr,
+                        tables->num_fields - cind > 1 ? "," : "");
+                };
+                ap_rprintf(r, "}%s", tables->num_rows - rind > 1 ? "," : "]");
             };
-            ap_rprintf(r, "}%s", tables->num_rows - rind > 1 ? "," : "]");
         };
         tables = tables->next;
     };
