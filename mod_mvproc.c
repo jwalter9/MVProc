@@ -94,6 +94,35 @@ static void xml_plain(request_rec *r, modmvproc_config *cfg, modmvproc_table *ta
     return;
 }
 
+static void xml_easy(request_rec *r, modmvproc_config *cfg, modmvproc_table *tables){
+    char *tchr = (char *)apr_palloc(r->pool, 21 * sizeof(char));
+    if(tchr == NULL)
+        ap_rprintf(r, "%s", "Memory allocation failure");
+    mvulong rind, cind;
+    time_t tim = time(NULL);
+    strftime(tchr,20,"%Y-%m-%d %H:%M:%S",localtime(&tim));
+    ap_rprintf(r, 
+        "<?xml version='1.0' encoding='UTF-8'?><results server_datetime='%s'>",
+        tchr);
+    while(tables != NULL){
+        ap_rprintf(r,"<%s>", tables->name);
+        for(rind = 0; rind < tables->num_rows; rind++){
+            ap_rprintf(r, "%s", "<row>");
+            for(cind = 0; cind < tables->num_fields; cind++){
+                ap_rprintf(r, "<%s><![CDATA[",tables->cols[cind].name);
+                ap_rwrite(tables->cols[cind].vals[rind].val, 
+                    tables->cols[cind].vals[rind].size, r);
+                ap_rprintf(r, "]]></%s>",tables->cols[cind].name);
+            };
+            ap_rprintf(r, "%s", "</row>");
+        };
+        ap_rprintf(r, "</%s>", tables->name);
+        tables = tables->next;
+    };
+    ap_rprintf(r, "%s", "</results>\r\n");
+    return;
+}
+
 static void json_out(request_rec *r, modmvproc_config *cfg, modmvproc_table *tables){
     char *tchr = (char *)apr_palloc(r->pool, 21 * sizeof(char));
     if(tchr == NULL)
@@ -174,6 +203,9 @@ static void generate_output(request_rec *r, modmvproc_config *cfg,
         apr_table_set(r->headers_out, "Set-Cookie", apreq_cookie_as_string(ck, r->pool));
     if(template == NULL){
         switch(cfg->output){
+        case _XML_EASY:
+            xml_easy(r, cfg, tables);
+            break;
         case _XML_NO_ATTR:
             xml_plain(r, cfg, tables);
             break;
@@ -298,6 +330,8 @@ static const char *set_out_type(cmd_parms *parms, void *mconfig, const char *arg
     modmvproc_config *cfg = ap_get_module_config(parms->server->module_config, &mvproc_module);
     if(strcmp(arg, "PLAIN") == 0 || strcmp(arg,"plain") == 0)
         cfg->output = _XML_NO_ATTR;
+    else if(strcmp(arg, "EASY_XML") == 0 || strcmp(arg,"easy_xml") == 0)
+        cfg->output = _XML_EASY;
     else if(strcmp(arg, "JSON") == 0 || strcmp(arg,"json") == 0)
         cfg->output = _JSON;
     else if(strcmp(arg, "EASY_JSON") == 0 || strcmp(arg,"easy_json") == 0)
