@@ -130,6 +130,7 @@ typedef enum {
 typedef enum {
     _XML_MIXED,
     _XML_NO_ATTR,
+    _JSON_EASY,
     _JSON
 } out_type;
 

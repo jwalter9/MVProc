@@ -125,6 +125,35 @@ static void json_out(request_rec *r, modmvproc_config *cfg, modmvproc_table *tab
     return;
 }
 
+static void easier_json_out(request_rec *r, modmvproc_config *cfg, modmvproc_table *tables){
+    char *tchr = (char *)apr_palloc(r->pool, 21 * sizeof(char));
+    if(tchr == NULL)
+        ap_rprintf(r, "%s", "Memory allocation failure");
+    mvulong rind, cind;
+    time_t tim = time(NULL);
+    strftime(tchr,20,"%Y-%m-%d %H:%M:%S",localtime(&tim));
+    ap_rprintf(r, "{\"server_datetime\":\"%s\"", tchr);
+    while(tables != NULL){
+        if(tables->num_rows < 1){
+            tables = tables->next;
+            continue;
+        };
+        ap_rprintf(r,",\"%s\":[", tables->name);
+        for(rind = 0; rind < tables->num_rows; rind++){
+            ap_rprintf(r, "%s", "{");
+            for(cind = 0; cind < tables->num_fields; cind++){
+                tchr = ap_escape_quotes(r->pool, tables->cols[cind].vals[rind].val);
+                ap_rprintf(r,"\"%s\":\"%s\"%s",tables->cols[cind].name,tchr,
+                    tables->num_fields - cind > 1 ? "," : "");
+            };
+            ap_rprintf(r, "}%s", tables->num_rows - rind > 1 ? "," : "]");
+        };
+        tables = tables->next;
+    };
+    ap_rprintf(r, "%s", "}\r\n");
+    return;
+}
+
 static void generate_output(request_rec *r, modmvproc_config *cfg, 
                             modmvproc_table *tables, apreq_cookie_t *ck){
 
@@ -137,7 +166,7 @@ static void generate_output(request_rec *r, modmvproc_config *cfg,
 
     if(template != NULL)
         ap_set_content_type(r, "text/html");
-    else if(cfg->output == _JSON)
+    else if(cfg->output == _JSON || cfg->output == _JSON_EASY)
         ap_set_content_type(r, "application/json");
     else
         ap_set_content_type(r, "text/xml");
@@ -151,6 +180,9 @@ static void generate_output(request_rec *r, modmvproc_config *cfg,
             break;
         case _JSON:
             json_out(r, cfg, tables);
+            break;
+        case _JSON_EASY:
+            easier_json_out(r, cfg, tables);
             break;
         default:
             xml_out(r, cfg, tables);
@@ -269,6 +301,8 @@ static const char *set_out_type(cmd_parms *parms, void *mconfig, const char *arg
         cfg->output = _XML_NO_ATTR;
     else if(strcmp(arg, "JSON") == 0 || strcmp(arg,"json") == 0)
         cfg->output = _JSON;
+    else if(strcmp(arg, "EASY_JSON") == 0 || strcmp(arg,"easy_json") == 0)
+        cfg->output = _JSON_EASY;
     else
         cfg->output = _XML_MIXED;
     return NULL;
