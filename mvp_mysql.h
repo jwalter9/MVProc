@@ -531,6 +531,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
                 next->cols[c].name = NULL;
 
             fields = mysql_fetch_fields(result);
+            next->name = NULL;
             for(f = 0; f < next->num_fields; f++){
                 switch(fields[f].type){
                 case MYSQL_TYPE_BLOB:
@@ -566,6 +567,12 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
                 next->cols[f].vals = (db_val_t *)apr_palloc(r->pool,
                     next->num_rows * sizeof(db_val_t));
                 if(next->cols[f].vals == NULL) OUT_OF_MEMORY;
+                if(next->name == NULL && strlen(fields[f].table) > 0){
+                    next->name = 
+                        (char *)apr_palloc(r->pool, (strlen(fields[f].table) + 1) * sizeof(char));
+                    if(next->name == NULL) OUT_OF_MEMORY;
+                    strcpy(next->name, fields[f].table);
+                };
             };
             for(ro = 0; ro < next->num_rows; ro++){
                 row = mysql_fetch_row(result);
@@ -591,12 +598,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
                 if(last != NULL)
                     last->next = next;
             }else{
-                if(strlen(fields[0].table) > 0){
-                    next->name = 
-                        (char *)apr_palloc(r->pool, (strlen(fields[0].table) + 1) * sizeof(char));
-                    if(next->name == NULL) OUT_OF_MEMORY;
-                    strcpy(next->name, fields[0].table);
-                }else{
+                if(next->name == NULL){
                     next->name = (char *)apr_palloc(r->pool, 7 * sizeof(char));
                     if(next->name == NULL) OUT_OF_MEMORY;
                     strcpy(next->name, "status");
