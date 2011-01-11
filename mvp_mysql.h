@@ -341,8 +341,8 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         fill_proc_struct(r->pool, (char *)row[0], (char *)row[1], cache_entry);
     };
 
-    /* starting size about twice minimum for headroom and changes */
-    qsize = 512 + strlen(procname) + (
+    /* large starting size for headroom and changes */
+    qsize = 1024 + strlen(procname) + (
         strlen(session_id) * 2 + 
         strlen(r->server->server_hostname) * 2 +
         strlen(r->method) * 2 +
@@ -437,6 +437,8 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         pos += escapeUserVar(mysql, "mvp_session", session_id, &query[pos]);
     if(cfg->template_dir != NULL && strlen(cfg->template_dir) > 0)
         pos += escapeUserVar(mysql, "mvp_template", procname, &query[pos]);
+    if(cfg->allow_setcontent != NULL)
+        pos += escapeUserVar(mysql, "mvp_content_type", "", &query[pos]);
     pos += escapeUserVar(mysql, "mvp_servername", r->server->server_hostname, &query[pos]);
     pos += escapeUserVar(mysql, "mvp_requestmethod", r->method, &query[pos]);
     pos += escapeUserVar(mysql, "mvp_uri", r->unparsed_uri, &query[pos]);
@@ -493,6 +495,12 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
 
     if(cfg->template_dir != NULL && strlen(cfg->template_dir) > 0){
         sprintf(&query[pos],"%s@%s",qsize > 0 ? ", ":" SELECT ","mvp_template");
+        pos = strlen(query);
+        qsize++;
+    };
+
+    if(cfg->allow_setcontent != NULL){
+        sprintf(&query[pos],"%s@%s",qsize > 0 ? ", ":" SELECT ","mvp_content_type");
         pos = strlen(query);
         qsize++;
     };
