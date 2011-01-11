@@ -185,6 +185,7 @@ typedef struct {
 	void *pool;
 	out_type output;
 	char *error_tpl;
+	char *allow_setcontent;
 } modmvproc_config;
 
 typedef struct {

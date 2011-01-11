@@ -186,13 +186,18 @@ static void generate_output(request_rec *r, modmvproc_config *cfg,
                             modmvproc_table *tables, apreq_cookie_t *ck){
 
     template_cache_t *template = NULL;
+    db_val_t *tval = NULL;
     if(cfg->template_dir != NULL && strlen(cfg->template_dir) > 0){
-        db_val_t *tval = lookup(r->pool, tables, "PROC_OUT", "mvp_template", 0);
+        tval = lookup(r->pool, tables, "PROC_OUT", "mvp_template", 0);
         if(tval != NULL && tval->val != NULL && strlen(tval->val) > 0)
         template = get_template(r->pool, cfg, tval->val);
     };
 
-    if(template != NULL)
+    if(cfg->allow_setcontent != NULL)
+        tval = lookup(r->pool, tables, "PROC_OUT", "mvp_content_type", 0);
+    if(tval != NULL && tval->val != NULL && strlen(tval->val) > 0)
+        ap_set_content_type(r, tval->val);
+    else if(template != NULL)
         ap_set_content_type(r, "text/html");
     else if(cfg->output == _JSON || cfg->output == _JSON_EASY)
         ap_set_content_type(r, "application/json");
@@ -350,6 +355,16 @@ static const char *set_error_tpl(cmd_parms *parms, void *mconfig, const char *ar
     return NULL;
 }
 
+static const char *set_allow_setcontent(cmd_parms *parms, void *mconfig, const char *arg){
+    modmvproc_config *cfg = ap_get_module_config(parms->server->module_config, &mvproc_module);
+    if(arg[0] != 'Y' && arg[0] != 'y') return NULL;
+	cfg->allow_setcontent = (char *)apr_palloc(parms->server->process->pconf, 
+	                                           (strlen(arg)+1) * sizeof(char));
+	if(cfg->allow_setcontent == NULL) return "OUT OF MEMORY";
+    strcpy(cfg->allow_setcontent, arg);
+    return NULL;
+}
+
 static const command_rec modmvproc_cmds[] = {
     AP_INIT_TAKE1("mvprocSession", set_session, NULL, RSRC_CONF, 
         "Session cookie: Y or N."),
@@ -365,6 +380,8 @@ static const command_rec modmvproc_cmds[] = {
         "The default output: PLAIN, JSON, or MIXED"),
     AP_INIT_TAKE1("mvprocErrTemplate", set_error_tpl, NULL, RSRC_CONF, 
         "The template for displaying db errors."),
+    AP_INIT_TAKE1("mvprocAllowSetContent", set_allow_setcontent, NULL, RSRC_CONF, 
+        "Set output content with @mvp_content_type - Y or N"),
 	{NULL}
 };
 
@@ -377,6 +394,7 @@ static void *create_modmvproc_config(apr_pool_t *p, server_rec *s){
 	newcfg->group = NULL;
 	newcfg->output = _XML_MIXED;
 	newcfg->error_tpl = NULL;
+	newcfg->allow_setcontent = NULL;
 	return newcfg;
 }
 
