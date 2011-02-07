@@ -439,6 +439,17 @@ static void fill_template(request_rec *r, modmvproc_config *cfg, template_cache_
                 ap_rprintf(r, "%s", piece->follow_text);
             };
             break;
+        case _TEMPLATE:
+            if(ifstate[ifdepth] == 1){
+                db_val = get_tag_value(r->pool, "mvp_template", tables, "PROC_OUT", 0);
+                if(db_val != NULL && db_val->val != NULL && strlen(db_val->val) > 0){
+                    incl = get_template(r->pool, cfg, db_val->val);
+                    if(incl != NULL) 
+                        fill_template(r, cfg, incl, tables, cur_table, cur_row);
+                };
+                ap_rprintf(r, "%s", piece->follow_text);
+            };
+            break;
         case _SET:
             if(ifstate[ifdepth] == 1){
                 eval_set(r->pool, tables, cur_table, cur_row, piece->sets);
