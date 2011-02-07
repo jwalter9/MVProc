@@ -213,9 +213,13 @@ static void db_cleanup(mvpool_t *pool, MYSQL *conn){
 }
 
 static size_t escapeUserVar(MYSQL *m, const char *n, const char *p, char *q){
-    char escaped[strlen(p) * 2 + 1];
-    mysql_real_escape_string(m, escaped, p, strlen(p));
-    sprintf(q, "SET @%s = '%s'; ", n, escaped);
+    if(p == NULL){
+        sprintf(q, "SET @%s = ''; ", n);
+    }else{
+        char escaped[strlen(p) * 2 + 1];
+        mysql_real_escape_string(m, escaped, p, strlen(p));
+        sprintf(q, "SET @%s = '%s'; ", n, escaped);
+    };
     return strlen(q);
 }
 
@@ -435,8 +439,10 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     
     if(cfg->session == 'Y' || cfg->session == 'y')
         pos += escapeUserVar(mysql, "mvp_session", session_id, &query[pos]);
-    if(cfg->template_dir != NULL && strlen(cfg->template_dir) > 0)
+    if(cfg->template_dir != NULL && strlen(cfg->template_dir) > 0){
         pos += escapeUserVar(mysql, "mvp_template", procname, &query[pos]);
+        pos += escapeUserVar(mysql, "mvp_layout", cfg->default_layout, &query[pos]);
+    };
     if(cfg->allow_setcontent != NULL)
         pos += escapeUserVar(mysql, "mvp_content_type", "", &query[pos]);
     pos += escapeUserVar(mysql, "mvp_servername", r->server->server_hostname, &query[pos]);
@@ -494,9 +500,9 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     };
 
     if(cfg->template_dir != NULL && strlen(cfg->template_dir) > 0){
-        sprintf(&query[pos],"%s@%s",qsize > 0 ? ", ":" SELECT ","mvp_template");
+        sprintf(&query[pos],"%s@%s, @%s",qsize > 0 ? ", ":" SELECT ","mvp_template","mvp_layout");
         pos = strlen(query);
-        qsize++;
+        qsize += 2;
     };
 
     if(cfg->allow_setcontent != NULL){

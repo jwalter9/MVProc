@@ -399,6 +399,9 @@ static template_cache_t *parse_template(apr_pool_t *p, char *tplstr){
                 nstr[pos] = '\0';
                 pos++;
             };
+        }else if(strncmp(&nstr[pos], "TEMPLATE", 8) == 0 
+            || strncmp(&nstr[pos], "template", 8) == 0){
+            next->type = _TEMPLATE;
         }else if(strncmp(&nstr[pos], "SET ", 4) == 0 
             || strncmp(&nstr[pos], "set ", 4) == 0){
             next->type = _SET;

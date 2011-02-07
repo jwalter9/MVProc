@@ -102,6 +102,7 @@ typedef enum {
     _LOOP,
     _ENDLOOP,
     _INCLUDE,
+    _TEMPLATE,
     _SET
 } tag_type;
 
@@ -185,6 +186,7 @@ typedef struct {
 	void *pool;
 	out_type output;
 	char *error_tpl;
+	char *default_layout;
 	char *allow_setcontent;
 } modmvproc_config;
 
