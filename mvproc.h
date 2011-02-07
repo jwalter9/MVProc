@@ -205,6 +205,22 @@ static db_val_t *lookup(apr_pool_t *p, modmvproc_table *tables,
         ret_val->type = _LONG;
         return ret_val;
     };
+    if(strcmp(colName, "NUM_ROWS") == 0){
+        db_val_t *ret_val = (db_val_t *)apr_palloc(p, (sizeof(db_val_t)));
+        if(ret_val == NULL) return NULL;
+        ret_val->val = (char *)apr_palloc(p, 20 * sizeof(char));
+        sprintf(ret_val->val, "%lu", rowNum);
+        ret_val->type = _LONG;
+        while(tables != NULL){
+            if(tables->name != NULL && strcmp(tables->name, tableName) == 0){
+                sprintf(ret_val->val, "%lu", tables->num_rows);
+                return ret_val;
+            };
+            tables = tables->next;
+        };
+        sprintf(ret_val->val, "%i", 0);
+        return ret_val;
+    };
     mvulong cind = 0;
     while(tables != NULL){
         if(tables->name != NULL && 
