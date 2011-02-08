@@ -433,7 +433,12 @@ static void fill_template(request_rec *r, modmvproc_config *cfg, template_cache_
             break;
         case _INCLUDE:
             if(ifstate[ifdepth] == 1){
-                incl = get_template(r->pool, cfg, piece->tag);
+                incl = NULL;
+                db_val = get_tag_value(r->pool, piece->tag, tables, cur_table, cur_row);
+                if(db_val != NULL && db_val->val != NULL)
+                    incl = get_template(r->pool, cfg, db_val->val);
+                if(incl == NULL)
+                    incl = get_template(r->pool, cfg, piece->tag);
                 if(incl != NULL) 
                     fill_template(r, cfg, incl, tables, cur_table, cur_row);
                 ap_rprintf(r, "%s", piece->follow_text);
