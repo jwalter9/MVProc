@@ -186,15 +186,19 @@ static void generate_output(request_rec *r, modmvproc_config *cfg,
                             modmvproc_table *tables, apreq_cookie_t *ck){
 
     template_cache_t *template = NULL;
+    template_cache_t *layout = NULL;
     db_val_t *tval = NULL;
     if(cfg->template_dir != NULL && strlen(cfg->template_dir) > 0){
-        tval = lookup(r->pool, tables, "PROC_OUT", "mvp_layout", 0);
+        tval = lookup(r->pool, tables, "PROC_OUT", "mvp_template", 0);
         if(tval != NULL && tval->val != NULL && strlen(tval->val) > 0){
             template = get_template(r->pool, cfg, tval->val);
-        }else{
-            tval = lookup(r->pool, tables, "PROC_OUT", "mvp_template", 0);
-            if(tval != NULL && tval->val != NULL && strlen(tval->val) > 0)
-                template = get_template(r->pool, cfg, tval->val);
+            if(template != NULL){
+                tval = lookup(r->pool, tables, "PROC_OUT", "mvp_layout", 0);
+                if(tval != NULL && tval->val != NULL && strlen(tval->val) > 0)
+                    layout = get_template(r->pool, cfg, tval->val);
+                if(layout != NULL)
+                    template = layout;
+            };
         };
         tval = NULL;
     };
