@@ -500,9 +500,10 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     };
 
     if(cfg->template_dir != NULL && strlen(cfg->template_dir) > 0){
-        sprintf(&query[pos],"%s@%s, @%s",qsize > 0 ? ", ":" SELECT ","mvp_template","mvp_layout");
+        sprintf(&query[pos],"%s@%s, @%s, @%s",qsize > 0 ? ", ":" SELECT ",
+        	"mvp_template","mvp_layout","mvp_servername");
         pos = strlen(query);
-        qsize += 2;
+        qsize += 3;
     };
 
     if(cfg->allow_setcontent != NULL){
