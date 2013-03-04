@@ -313,6 +313,32 @@ static template_cache_t *get_template(apr_pool_t *p, modmvproc_config *cfg, char
     return next;
 }
 
+static void convert_html(request_rec *r, char *val){
+    mvulong len, i;
+    len = strlen(val);
+    for(i=0; i<len; i++){
+        switch(val[i]){
+        case '&':
+            ap_rprintf(r, "%s", "&amp;");
+            break;
+        case '"':
+            ap_rprintf(r, "%s", "&quot;");
+            break;
+        case '\'':
+            ap_rprintf(r, "%s", "&#039;");
+            break;
+        case '<':
+            ap_rprintf(r, "%s", "&lt;");
+            break;
+        case '>':
+            ap_rprintf(r, "%s", "&gt;");
+            break;
+        default:
+            ap_rputc(val[i], r);
+        };
+    };
+}
+
 static void fill_template(request_rec *r, modmvproc_config *cfg, template_cache_t *tpl, 
                    modmvproc_table *tables, char *cur_table, mvulong cur_row){
     mvulong ifdepth = 0, fordepth = 0;
@@ -337,9 +363,14 @@ static void fill_template(request_rec *r, modmvproc_config *cfg, template_cache_
         case _VALUE:
             if(ifstate[ifdepth] == 1){
                 db_val = get_tag_value(r->pool, piece->tag, tables, cur_table, cur_row);
-                if(db_val != NULL && db_val->val != NULL)
-                    ap_rprintf(r, "%s%s",db_val->val,piece->follow_text);
-                else
+                if(db_val != NULL && db_val->val != NULL){
+                    if(cfg->allow_html_chars == 'Y'){
+                        ap_rprintf(r, "%s%s", db_val->val, piece->follow_text);
+                    }else{
+                        convert_html(r, db_val->val);
+                        ap_rprintf(r, "%s", piece->follow_text);
+                    };
+                }else
                     ap_rprintf(r, "%s",piece->follow_text);
             };
             break;

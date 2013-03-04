@@ -188,6 +188,7 @@ typedef struct {
 	char *error_tpl;
 	char *default_layout;
 	char *allow_setcontent;
+	char allow_html_chars;
 } modmvproc_config;
 
 typedef struct {
