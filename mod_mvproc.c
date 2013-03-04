@@ -383,6 +383,13 @@ static const char *set_allow_setcontent(cmd_parms *parms, void *mconfig, const c
     return NULL;
 }
 
+static const char *set_allow_html_chars(cmd_parms *parms, void *mconfig, const char *arg){
+    modmvproc_config *cfg = ap_get_module_config(parms->server->module_config, &mvproc_module);
+    if(arg[0] != 'Y' && arg[0] != 'y') return NULL;
+    cfg->allow_html_chars = 'Y';
+    return NULL;
+}
+
 static const command_rec modmvproc_cmds[] = {
     AP_INIT_TAKE1("mvprocSession", set_session, NULL, RSRC_CONF, 
         "Session cookie: Y or N."),
@@ -402,6 +409,8 @@ static const command_rec modmvproc_cmds[] = {
         "The default layout in which to insert template content."),
     AP_INIT_TAKE1("mvprocAllowSetContent", set_allow_setcontent, NULL, RSRC_CONF, 
         "Set output content with @mvp_content_type - Y or N"),
+    AP_INIT_TAKE1("mvprocAllowHTMLfromDB", set_allow_html_chars, NULL, RSRC_CONF, 
+        "Allow HTML output from DB - Y or N"),
 	{NULL}
 };
 
@@ -416,6 +425,7 @@ static void *create_modmvproc_config(apr_pool_t *p, server_rec *s){
 	newcfg->error_tpl = NULL;
 	newcfg->default_layout = NULL;
 	newcfg->allow_setcontent = NULL;
+	newcfg->allow_html_chars = 'N';
 	return newcfg;
 }
 
