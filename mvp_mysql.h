@@ -144,7 +144,7 @@ static const char *make_pool(apr_pool_t *p, modmvproc_config *cfg, unsigned long
             return mysql_error(&newpool->connections[iter]);
     };
     cfg->pool = newpool;
-    apr_pool_cleanup_register(p, cfg, cleanup_connections, NULL);
+    apr_pool_cleanup_register(p, cfg, cleanup_connections, cleanup_connections);
     return NULL;
 }
 
@@ -352,7 +352,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         strlen(r->method) * 2 +
         strlen(r->unparsed_uri) * 2 +
         strlen(r->the_request) * 2 +
-        strlen(r->connection->remote_ip)
+        strlen(r->useragent_ip)
         ) * 2; 
     parm_ind = 0;
     param = cache_entry->param_list;
@@ -449,7 +449,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     pos += escapeUserVar(mysql, "mvp_requestmethod", r->method, &query[pos]);
     pos += escapeUserVar(mysql, "mvp_uri", r->unparsed_uri, &query[pos]);
     pos += escapeUserVar(mysql, "mvp_headers", r->the_request, &query[pos]);
-    pos += escapeUserVar(mysql, "mvp_remoteip", r->connection->remote_ip, &query[pos]);
+    pos += escapeUserVar(mysql, "mvp_remoteip", r->useragent_ip, &query[pos]);
     
     sprintf(&query[pos], "CALL %s(",cache_entry->procname);
     pos = strlen(query);

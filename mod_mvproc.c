@@ -256,7 +256,7 @@ if(template == NULL){
 			session_cookie = apreq_jar_get(apreq, "MVPSESSION");
 			if(session_cookie == NULL){
 				session_val = (char *)apr_palloc(r->pool, 36 * sizeof(char));
-				sprintf(session_val,"%s",r->connection->remote_ip);
+				sprintf(session_val,"%s",r->useragent_ip);
 				sprintf(&session_val[strlen(session_val)],"%d",rand());
 				strncpy(session_val, ap_md5(apreq->pool, (unsigned char *)session_val), 32);
 				session_val[32] = '\0';
