@@ -395,6 +395,21 @@ if(template == NULL){
 		return NULL;
 	}
 	
+	static const char *set_upload_dir(cmd_parms *parms, void *mconfig, const char *arg){
+		modmvproc_config *cfg = ap_get_module_config(parms->server->module_config, &mvproc_module);
+		if(strlen(arg) > 1000) 
+		    return "Upload directory path must be less than 1000 chars. Try a symbolic link.";
+		apr_status_t fstat;
+		fstat = apr_dir_make_recursive(arg, APR_FPROT_OS_DEFAULT, parms->server->process->pconf);
+		if(fstat != APR_SUCCESS)
+		    return "Failed to create upload directory.";
+		cfg->upload_dir = (char *)apr_palloc(parms->server->process->pconf, 
+			(strlen(arg)+1) * sizeof(char));
+		if(cfg->upload_dir == NULL) return "OUT OF MEMORY";
+		strcpy(cfg->upload_dir, arg);
+		return NULL;
+	}
+	
 	static const command_rec modmvproc_cmds[] = {
 		AP_INIT_TAKE1("mvprocSession", set_session, NULL, RSRC_CONF, 
 			"Session cookie: Y or N."),
@@ -416,6 +431,8 @@ if(template == NULL){
 			"Set output content with @mvp_content_type - Y or N"),
 		AP_INIT_TAKE1("mvprocAllowHTMLfromDB", set_allow_html_chars, NULL, RSRC_CONF, 
 			"Allow HTML output from DB - Y or N"),
+		AP_INIT_TAKE1("mvprocUploadDirectory", set_upload_dir, NULL, RSRC_CONF, 
+			"The directory to which files are uploaded."),
 		{NULL}
 	};
 	
@@ -431,6 +448,8 @@ if(template == NULL){
 		newcfg->default_layout = NULL;
 		newcfg->allow_setcontent = NULL;
 		newcfg->allow_html_chars = 'N';
+		newcfg->upload_dir = (char *) apr_pcalloc(p, 5 * sizeof(char));
+		strcpy(newcfg->upload_dir, "/tmp");
 		return newcfg;
 	}
 	

@@ -189,6 +189,7 @@ typedef struct {
 	char *default_layout;
 	char *allow_setcontent;
 	char allow_html_chars;
+	char *upload_dir;
 } modmvproc_config;
 
 typedef struct {

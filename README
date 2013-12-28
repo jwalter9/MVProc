@@ -27,7 +27,7 @@ Configuration
     LoadModule apreq_module /usr/lib/apache2/modules/mod_apreq2.so
     LoadModule mvproc_module /usr/lib/apache2/modules/mod_mvproc.so
 
-There are ten (10) configuration directives for mod_mvproc:
+There are eleven (11) configuration directives for mod_mvproc:
 
 mvprocSession (Y or N) - sets session behavior. 
     If sessions are enabled (Y), the module will supply called stored 
@@ -83,6 +83,11 @@ mvprocAllowSetContent (Y or N) - provides @mvp_content_type
 mvprocAllowHTMLfromDB (Y or N) – default N, Y allows HTML output from 
     the database to be rendered as HTML. By default, MVProc will convert 
     '<' to '&lt;', '&' to '&quot;', etc.    
+
+mvprocUploadDirectory - Sets the path to a directory where uploaded
+    files are written. It is highly recommended that this path be
+    OUTSIDE the docroot. If the path doesn't exist, MVProc will
+    attempt to create it. Default value is /tmp
     
 Requests
 
