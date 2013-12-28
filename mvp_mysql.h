@@ -83,8 +83,7 @@ static void fill_proc_struct(apr_pool_t *p, const char *pname,
 
 static const char *build_cache(apr_pool_t *p, modmvproc_config *cfg){
     MYSQL mysql;
-    mysql_init(&mysql);
-    if(&mysql == NULL)
+    if(NULL == mysql_init(&mysql))
         return "Failed init";
     if(mysql_options(&mysql, MYSQL_READ_DEFAULT_GROUP, cfg->group) != 0)
         return "Failed Option";
@@ -294,6 +293,8 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     char *escaped;
     char procname[66];
     char uploaded[1024];
+    char tmpfile[1024];
+    char *upload_ext;
     strcpy(procname, r->uri + sizeof(char)); /* first will be a '/' */
     if(procname[0] == '\0')
         strcpy(procname, "landing");
@@ -364,14 +365,25 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
             inparms[parm_ind].val = NULL;
         }else{
             if(parsed_param->upload != NULL){
-                strcpy(uploaded, tmpnam(NULL));
-                pos = strlen(uploaded);
-                if(strrchr(parsed_param->v.data, '.') != NULL)
-                    strcpy(&uploaded[pos], strrchr(parsed_param->v.data, '.'));
-                fstat = apr_file_open(&fptr, uploaded, APR_WRITE | APR_CREATE, APR_OS_DEFAULT, r->pool);
+                strcpy(uploaded, cfg->upload_dir);
+                pos = strlen(cfg->upload_dir);
+                strcpy(&uploaded[pos], "/XXXXXX");
+                fstat = apr_file_mktemp(&fptr, uploaded, APR_FOPEN_WRITE | APR_FOPEN_CREATE, r->pool);
                 if(fstat == APR_SUCCESS){
                     fstat = apreq_brigade_fwrite(fptr, wlen, parsed_param->upload);
                     apr_file_close(fptr);
+                };
+                if(fstat == APR_SUCCESS){
+                    fstat = apr_file_perms_set(uploaded, APR_OS_DEFAULT);
+                    if(fstat == APR_INCOMPLETE || fstat == APR_ENOTIMPL) fstat = APR_SUCCESS;
+                };
+                upload_ext = strrchr(parsed_param->v.data, '.');
+                if(fstat == APR_SUCCESS){
+                    if(upload_ext != NULL && strlen(upload_ext) < 9){
+                        strcpy(tmpfile, uploaded);
+                        strcat(uploaded, upload_ext);
+                        fstat = apr_file_rename(tmpfile, uploaded, r->pool);
+                    };
                 };
                 if(fstat == APR_SUCCESS){
                     escaped = (char *)apr_palloc(r->pool, (strlen(uploaded) * 2 + 1) * sizeof(char));
