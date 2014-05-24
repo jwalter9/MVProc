@@ -313,6 +313,15 @@ if(template == NULL){
 		return NULL;
 	}
 	
+	static const char *set_default_proc(cmd_parms *parms, void *mconfig, const char *arg){
+		modmvproc_config *cfg = ap_get_module_config(parms->server->module_config, &mvproc_module);
+		cfg->default_proc = (char *)apr_palloc(parms->server->process->pconf, 
+			(strlen(arg)+1) * sizeof(char));
+		if(cfg->default_proc == NULL) return "OUT OF MEMORY";
+		strcpy(cfg->default_proc, arg);
+		return NULL;
+	}
+	
 	static const char *set_session(cmd_parms *parms, void *mconfig, const char *arg){
 		modmvproc_config *cfg = ap_get_module_config(parms->server->module_config, &mvproc_module);
 		cfg->session = arg[0];
@@ -417,6 +426,8 @@ if(template == NULL){
 			"Full path to template directory."),
 		AP_INIT_TAKE1("mvprocDbGroup", set_db_group, NULL, RSRC_CONF, 
 			"Db Group defined in /etc/mysql/my.cnf"),
+		AP_INIT_TAKE1("mvprocDefaultProc", set_default_proc, NULL, RSRC_CONF, 
+			"Similar to DirectoryIndex"),
 		AP_INIT_TAKE1("mvprocCache", maybe_build_cache, NULL, RSRC_CONF, 
 			"Cache - Y - production, N - development, D - DB only, T - templates only."),
 		AP_INIT_TAKE1("mvprocDbPoolSize", maybe_make_pool, NULL, RSRC_CONF, 
@@ -443,6 +454,7 @@ if(template == NULL){
 		newcfg->template_cache = NULL;
 		newcfg->pool = NULL;
 		newcfg->group = NULL;
+		newcfg->default_proc = NULL;
 		newcfg->output = _XML_MIXED;
 		newcfg->error_tpl = NULL;
 		newcfg->default_layout = NULL;
