@@ -27,7 +27,7 @@ Configuration
     LoadModule apreq_module /usr/lib/apache2/modules/mod_apreq2.so
     LoadModule mvproc_module /usr/lib/apache2/modules/mod_mvproc.so
 
-There are eleven (11) configuration directives for mod_mvproc:
+There are twelve (12) configuration directives for mod_mvproc:
 
 mvprocSession (Y or N) - sets session behavior. 
     If sessions are enabled (Y), the module will supply called stored 
@@ -48,6 +48,13 @@ password = mypass
 database = webdb
 
     Please refer to the MySQL documentation for my.cnf subtleties.
+    Do consider that my.cnf is accessible. Best practice is to create a user 
+    (let's say 'foo'@'localhost') for an MVProc database (let's say `bar`) 
+    and grant only minimal access. Most of the time, this would be:
+    GRANT SELECT (`name`,`param_list`,`db`,`type`) ON `mysql`.`proc` 
+        TO 'foo'@'localhost';
+    (The above is the minimum required permission for MVProc to work at all.)
+    GRANT EXECUTE ON `bar`.* TO 'foo'@'localhost';
 
 mvprocTemplateDir (/your/template/directory) - the location of the templates.
     This is best placed  outside the doc root - in fact, if the 
@@ -61,6 +68,10 @@ mvprocDefaultLayout (yourLayoutTemplate - leave off the '.tpl')
     If set, this will set the @mvp_layout session variable to a 
     default value. It's not required to set this in the configuration, 
     as procedures can set it as well. More on layouts later.
+
+mvprocDefaultProc (yourDefaultProc) 
+    If set, this will be the procedure that's called when the request uri is '/'
+    DirectoryIndex should be 'index' of some type and the file should not exist
 
 mvprocCache (Y or N) - Y enables caching of procs AND templates. 
     Set to N during development and Y for production use.
@@ -91,12 +102,17 @@ mvprocUploadDirectory - Sets the path to a directory where uploaded
     
 Requests
 
-Requests are typical “pretty” web format, like so: http://mysite.com/procname.
+Requests are typical “pretty” web format, like so: http://mysite.com/procname. 
     If the url points to a file that exists, the module will decline handling, 
-    which means the file will be served as normal. If the url is requested 
-    without a procedure specified, a procedure named 'landing' will be looked 
-    for. If a procedure does not exist with the requested name, the module 
-    will decline processing.
+    which means the file will be served as normal. If the uri is empty 
+    (ie. nothing or '/' after the url), a procedure either specified by the 
+    mvprocDefaultProc configuration directive or 'landing' will be looked for. 
+    If a procedure matching the name does not exist, the module will decline 
+    processing. One real blessing of Apache is the SetHandler directive. 
+    To have MVProc serve up the index page, I use this:
+    <Location "/">
+        SetHandler mvproc
+    </Location>
 
 GET and POST requests are supported, as well as file uploads. 
     A file upload will be written to the system's temp directory 
