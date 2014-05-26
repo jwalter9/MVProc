@@ -368,7 +368,28 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         strlen(r->unparsed_uri) * 2 +
         strlen(r->the_request) * 2 +
         strlen(r->useragent_ip)
-        ) * 2; 
+        ) * 2;
+
+    /* let's get ALL the headers for @mvp_headers */
+    const apr_array_header_t *hfields;
+    int i;
+    size_t header_size = 0;
+    size_t hpos = 0;
+    apr_table_entry_t *e = 0;
+    hfields = apr_table_elts(r->headers_in);
+    e = (apr_table_entry_t *) hfields->elts;
+    for(i = 0; i < hfields->nelts; i++) {
+        header_size += (strlen(e[i].key) + strlen(e[i].val) + 3);
+    };
+    header_size++;
+    qsize += header_size * 2 + 1;
+    char all_headers[header_size];
+    e = (apr_table_entry_t *) hfields->elts;
+    for(i = 0; i < hfields->nelts; i++) {
+        sprintf(&all_headers[hpos], "%s=%s; ", e[i].key, e[i].val);
+        hpos += (strlen(e[i].key) + strlen(e[i].val) + 3);
+    };
+
     parm_ind = 0;
     param = cache_entry->param_list;
     db_call_param inparms[cache_entry->num_params];
@@ -474,7 +495,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     pos += escapeUserVar(mysql, "mvp_servername", r->server->server_hostname, &query[pos]);
     pos += escapeUserVar(mysql, "mvp_requestmethod", r->method, &query[pos]);
     pos += escapeUserVar(mysql, "mvp_uri", r->unparsed_uri, &query[pos]);
-    pos += escapeUserVar(mysql, "mvp_headers", r->the_request, &query[pos]);
+    pos += escapeUserVar(mysql, "mvp_headers", all_headers, &query[pos]);
     pos += escapeUserVar(mysql, "mvp_remoteip", r->useragent_ip, &query[pos]);
     
     sprintf(&query[pos], "CALL %s(",cache_entry->procname);
