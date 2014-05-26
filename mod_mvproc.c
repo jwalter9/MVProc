@@ -185,59 +185,59 @@ static void easier_json_out(request_rec *r, modmvproc_config *cfg, modmvproc_tab
 static void generate_output(request_rec *r, modmvproc_config *cfg, 
 	modmvproc_table *tables, apreq_cookie_t *ck){
 
-template_cache_t *template = NULL;
-template_cache_t *layout = NULL;
-db_val_t *tval = NULL;
-if(cfg->template_dir != NULL && strlen(cfg->template_dir) > 0){
+    template_cache_t *template = NULL;
+    template_cache_t *layout = NULL;
+    db_val_t *tval = NULL;
+    if(cfg->template_dir != NULL && strlen(cfg->template_dir) > 0){
         tval = lookup(r->pool, tables, "PROC_OUT", "mvp_template", 0);
         if(tval != NULL && tval->val != NULL && strlen(tval->val) > 0){
-        	template = get_template(r->pool, cfg, tval->val);
-        	if(template != NULL){
-        		tval = lookup(r->pool, tables, "PROC_OUT", "mvp_layout", 0);
-        		if(tval != NULL && tval->val != NULL && strlen(tval->val) > 0)
-        			layout = get_template(r->pool, cfg, tval->val);
-        		if(layout != NULL)
-        			template = layout;
-        	};
+            template = get_template(r->pool, cfg, tval->val);
+            if(template != NULL){
+                tval = lookup(r->pool, tables, "PROC_OUT", "mvp_layout", 0);
+                if(tval != NULL && tval->val != NULL && strlen(tval->val) > 0)
+                    layout = get_template(r->pool, cfg, tval->val);
+                if(layout != NULL)
+                    template = layout;
+            };
         };
         tval = NULL;
-};
-
-if(cfg->allow_setcontent != NULL)
+    };
+    
+    if(cfg->allow_setcontent != NULL)
         tval = lookup(r->pool, tables, "PROC_OUT", "mvp_content_type", 0);
-if(tval != NULL && tval->val != NULL && strlen(tval->val) > 0)
+    if(tval != NULL && tval->val != NULL && strlen(tval->val) > 0)
         ap_set_content_type(r, tval->val);
-else if(template != NULL)
+    else if(template != NULL)
         ap_set_content_type(r, "text/html");
-else if(cfg->output == _JSON || cfg->output == _JSON_EASY)
+    else if(cfg->output == _JSON || cfg->output == _JSON_EASY)
         ap_set_content_type(r, "application/json");
-else
+    else
         ap_set_content_type(r, "text/xml");
-
-if(ck != NULL)
+    
+    if(ck != NULL)
         apr_table_set(r->headers_out, "Set-Cookie", apreq_cookie_as_string(ck, r->pool));
-if(template == NULL){
+    if(template == NULL){
         switch(cfg->output){
         case _XML_EASY:
-        	xml_easy(r, cfg, tables);
-        	break;
+            xml_easy(r, cfg, tables);
+            break;
         case _XML_NO_ATTR:
-        	xml_plain(r, cfg, tables);
-        	break;
+            xml_plain(r, cfg, tables);
+            break;
         case _JSON:
-        	json_out(r, cfg, tables);
-        	break;
+            json_out(r, cfg, tables);
+            break;
         case _JSON_EASY:
-        	easier_json_out(r, cfg, tables);
-        	break;
+            easier_json_out(r, cfg, tables);
+            break;
         default:
-        	xml_out(r, cfg, tables);
+            xml_out(r, cfg, tables);
         };
-}else{
+    }else{
         fill_template(r, cfg, template, tables, "PROC_OUT", 0);
         ap_rprintf(r, "%s", "\n");
-};
-	}
+    };
+}
 	
 	
 	module AP_MODULE_DECLARE_DATA mvproc_module;
