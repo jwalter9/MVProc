@@ -255,7 +255,7 @@ static void generate_output(request_rec *r, modmvproc_config *cfg,
 		if(cfg->session == 'Y' || cfg->session == 'y'){
 			session_cookie = apreq_jar_get(apreq, "MVPSESSION");
 			if(session_cookie == NULL){
-				session_val = (char *)apr_palloc(r->pool, 36 * sizeof(char));
+				session_val = (char *)apr_palloc(r->pool, 65 * sizeof(char));
 				sprintf(session_val,"%s",r->useragent_ip);
 				sprintf(&session_val[strlen(session_val)],"%d",rand());
 				strncpy(session_val, ap_md5(apreq->pool, (unsigned char *)session_val), 32);
