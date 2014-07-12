@@ -286,30 +286,17 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
                                     apreq_handle_t *apreq, 
                                     const char *session_id, int *errback){
 
-    if(strlen(r->uri) > 65){
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-            "Request for impossible content: %s", r->uri);
-        *errback = DECLINED;
-        return NULL;
-    };
     MYSQL *mysql = db_connect(cfg, r);
     if(mysql == NULL) return NULL;
 	modmvproc_cache *cache_entry = NULL;
 	size_t qsize = 0, pos = 0;
     char *escaped;
-    char procname[133];
+    char *procname = (char *)apr_palloc(r->pool, strlen(r->uri) * 2 + 1);
     char uploaded[1024];
     char tmpfile[1024];
     char *upload_ext;
-    mysql_real_escape_string(mysql, procname, r->uri + sizeof(char), 
-                             strlen(r->uri) - 1); /* first will be a '/' */
-    if(procname[0] == '\0'){
-        if(cfg->default_proc == NULL){
-            strcpy(procname, "landing");
-        }else{
-            strcpy(procname, cfg->default_proc);
-        };
-    };
+    /* first char of uri will be a '/' */
+    mysql_real_escape_string(mysql, procname, r->uri + 1, strlen(r->uri) - 1); 
     MYSQL_RES *result;
     MYSQL_ROW row;
 
@@ -326,11 +313,15 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         while(cache_entry != NULL){
             if(strcmp(cache_entry->procname,procname) == 0) break;
             if(cache_entry->next == NULL){
-                db_cleanup((mvpool_t *)cfg->pool, mysql);
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                    "Request for unknown content: %s", procname);
-                *errback = DECLINED;
-                return NULL;
+                if(cfg->default_proc == NULL){
+                    procname = (char *)apr_palloc(r->pool, 8);
+                    strcpy(procname, "landing");
+                }else{
+                    procname = (char *)apr_palloc(r->pool, 
+                        strlen(cfg->default_proc) + 1);
+                    strcpy(procname, cfg->default_proc);
+                };
+                break;
             };
             cache_entry = cache_entry->next;
         };
@@ -344,12 +335,30 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         };
         result = mysql_store_result(mysql);
         if(mysql_num_rows(result) < 1){
+            /* no proc by that name? use default_proc or 'landing' */
             mysql_free_result(result);
-            db_cleanup((mvpool_t *)cfg->pool, mysql);
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
-                "Request for unknown content: %s", procname);
-            *errback = DECLINED;
-            return NULL;
+            if(cfg->default_proc == NULL){
+                procname = (char *)apr_palloc(r->pool, 8);
+                strcpy(procname, "landing");
+            }else{
+                procname = (char *)apr_palloc(r->pool, strlen(cfg->default_proc) + 1);
+                strcpy(procname, cfg->default_proc);
+            };
+            qsize = 85 + strlen(mysql->db) + strlen(procname);
+            proc_query = apr_palloc(r->pool, qsize * sizeof(char));
+            sprintf(proc_query, "SELECT name, param_list FROM mysql.proc WHERE db='%s' AND type='PROCEDURE' AND name='%s'",
+                mysql->db, procname);
+            if(mysql_real_query(mysql,proc_query,strlen(proc_query)) != 0){
+                return dbError(cfg, r, mysql);
+            };
+            if(mysql_num_rows(result) < 1){
+                mysql_free_result(result);
+                db_cleanup((mvpool_t *)cfg->pool, mysql);
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                    "Request for unknown content: %s", procname);
+                *errback = DECLINED;
+                return NULL;
+            };
         };
         row = mysql_fetch_row(result);
         if(row == NULL){
