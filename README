@@ -71,7 +71,13 @@ mvprocDefaultLayout (yourLayoutTemplate - leave off the '.tpl')
 
 mvprocDefaultProc (yourDefaultProc) 
     If set, this will be the procedure that's called when the request uri is '/'
-    DirectoryIndex should be 'index' of some type and the file should not exist
+    or if the uri does not match a procedure. A non-proc uri is allowed so pages
+    can be given interesting urls like http://my.site.org/i-like-cheese
+    Do remember to handle possible non-proc uris in your default proc.
+    In order to force Apache to send '/' to mvproc, use
+    <Location "/">
+        SetHandler mvproc
+    </Location>
 
 mvprocCache (Y or N) - Y enables caching of procs AND templates. 
     Set to N during development and Y for production use.
@@ -105,14 +111,9 @@ Requests
 Requests are typical “pretty” web format, like so: http://mysite.com/procname. 
     If the url points to a file that exists, the module will decline handling, 
     which means the file will be served as normal. If the uri is empty 
-    (ie. nothing or '/' after the url), a procedure either specified by the 
-    mvprocDefaultProc configuration directive or 'landing' will be looked for. 
-    If a procedure matching the name does not exist, the module will decline 
-    processing. One real blessing of Apache is the SetHandler directive. 
-    To have MVProc serve up the index page, I use this:
-    <Location "/">
-        SetHandler mvproc
-    </Location>
+    (ie. nothing or '/' after the url) or the uri does not match a stored 
+    procedure, the procedure specified by the mvprocDefaultProc configuration 
+    directive or 'landing' will be looked for. See mvprocDefaultProc config
 
 GET and POST requests are supported, as well as file uploads. 
     A file upload will be written to the system's temp directory 
