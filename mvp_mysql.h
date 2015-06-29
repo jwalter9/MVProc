@@ -312,18 +312,29 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         cache_entry = cfg->cache;
         while(cache_entry != NULL){
             if(strcmp(cache_entry->procname,procname) == 0) break;
-            if(cache_entry->next == NULL){
-                if(cfg->default_proc == NULL){
-                    procname = (char *)apr_palloc(r->pool, 8);
-                    strcpy(procname, "landing");
-                }else{
-                    procname = (char *)apr_palloc(r->pool, 
-                        strlen(cfg->default_proc) + 1);
-                    strcpy(procname, cfg->default_proc);
-                };
-                break;
-            };
             cache_entry = cache_entry->next;
+        };
+        if(cache_entry == NULL){
+            if(cfg->default_proc == NULL){
+              	procname = (char *)apr_palloc(r->pool, 8);
+               	strcpy(procname, "landing");
+            }else{
+               	procname = (char *)apr_palloc(r->pool, 
+               		strlen(cfg->default_proc) + 1);
+               	strcpy(procname, cfg->default_proc);
+            };
+            cache_entry = cfg->cache;
+            while(cache_entry != NULL){
+               	if(strcmp(cache_entry->procname,procname) == 0) break;
+               	cache_entry = cache_entry->next;
+            };
+            if(cache_entry == NULL){
+            	db_cleanup((mvpool_t *)cfg->pool, mysql);
+            	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+    	            "Request for unknown content: %s", procname);
+            	*errback = DECLINED;
+            	return NULL;
+            };
         };
     }else{
         qsize = 85 + strlen(mysql->db) + strlen(procname);
