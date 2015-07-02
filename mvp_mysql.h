@@ -362,6 +362,7 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
             if(mysql_real_query(mysql,proc_query,strlen(proc_query)) != 0){
                 return dbError(cfg, r, mysql);
             };
+            result = mysql_store_result(mysql);
             if(mysql_num_rows(result) < 1){
                 mysql_free_result(result);
                 db_cleanup((mvpool_t *)cfg->pool, mysql);
