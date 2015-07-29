@@ -483,6 +483,12 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         param = param->next;
     };
     
+    user_var_t *uvar = cfg->user_vars;
+    while(uvar != NULL){
+    	    qsize += strlen(uvar->varname) * 2 + 21;
+    	    uvar = uvar->next;
+    };
+    
     pos = 0;
     char query[qsize];
     for(parm_ind = 0; parm_ind < cache_entry->num_params; parm_ind++){
@@ -518,6 +524,11 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
     pos += escapeUserVar(mysql, "mvp_uri", r->unparsed_uri, &query[pos]);
     pos += escapeUserVar(mysql, "mvp_headers", all_headers, &query[pos]);
     pos += escapeUserVar(mysql, "mvp_remoteip", r->useragent_ip, &query[pos]);
+    uvar = cfg->user_vars;
+    while(uvar != NULL){
+    	pos += escapeUserVar(mysql, uvar->varname, NULL, &query[pos]);
+    	uvar = uvar->next;
+    };
     
     sprintf(&query[pos], "CALL %s(",cache_entry->procname);
     pos = strlen(query);
@@ -578,6 +589,14 @@ static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
         sprintf(&query[pos],"%s@%s",qsize > 0 ? ", ":" SELECT ","mvp_content_type");
         pos = strlen(query);
         qsize++;
+    };
+
+    uvar = cfg->user_vars;
+    while(uvar != NULL){
+        sprintf(&query[pos],"%s@%s",qsize > 0 ? ", ":" SELECT ",uvar->varname);
+        pos = strlen(query);
+        qsize++;
+        uvar = uvar->next;
     };
     
     if(qsize > 0) sprintf(&query[pos],";");

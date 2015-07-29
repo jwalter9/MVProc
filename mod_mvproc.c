@@ -419,6 +419,34 @@ static void generate_output(request_rec *r, modmvproc_config *cfg,
 		return NULL;
 	}
 	
+	static const char *set_user_vars(cmd_parms *parms, void *mconfig, const char *arg){
+		modmvproc_config *cfg = ap_get_module_config(parms->server->module_config, &mvproc_module);
+		const char *pos = arg;
+		size_t len = 0;
+		const char *end = arg + strlen(arg);
+		user_var_t *uvar = (user_var_t *)apr_palloc(parms->server->process->pconf, sizeof(user_var_t));
+		if(uvar == NULL) return "OUT OF MEMORY";
+		cfg->user_vars = uvar;
+		while(pos < end){
+			len = strcspn(pos, ",");
+			if(len > 0){
+				uvar->varname = (char *)apr_palloc(parms->server->process->pconf, (len + 1) * sizeof(char));
+				if(uvar->varname == NULL) return "OUT OF MEMORY";
+				strncpy(uvar->varname, pos, len);
+				uvar->varname[len] = '\0';
+				pos += len + 1;
+				if(pos < end){
+					uvar->next = (user_var_t *)apr_palloc(parms->server->process->pconf, sizeof(user_var_t));
+					if(uvar->next == NULL) return "OUT OF MEMORY";
+					uvar = uvar->next;
+				}else{
+					uvar->next = NULL;
+				};
+			};
+		};
+		return NULL;
+	}
+	
 	static const command_rec modmvproc_cmds[] = {
 		AP_INIT_TAKE1("mvprocSession", set_session, NULL, RSRC_CONF, 
 			"Session cookie: Y or N."),
@@ -444,6 +472,8 @@ static void generate_output(request_rec *r, modmvproc_config *cfg,
 			"Allow HTML output from DB - Y or N"),
 		AP_INIT_TAKE1("mvprocUploadDirectory", set_upload_dir, NULL, RSRC_CONF, 
 			"The directory to which files are uploaded."),
+		AP_INIT_TAKE1("mvprocUserVars", set_user_vars, NULL, RSRC_CONF, 
+			"Additional @vars to make available to the procs."),
 		{NULL}
 	};
 	
@@ -462,6 +492,7 @@ static void generate_output(request_rec *r, modmvproc_config *cfg,
 		newcfg->allow_html_chars = 'N';
 		newcfg->upload_dir = (char *) apr_pcalloc(p, 5 * sizeof(char));
 		strcpy(newcfg->upload_dir, "/tmp");
+		newcfg->user_vars = NULL;
 		return newcfg;
 	}
 	

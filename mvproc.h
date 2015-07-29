@@ -177,6 +177,11 @@ typedef struct template_cache_t {
     struct template_cache_t *next;
 } template_cache_t;
 
+typedef struct user_var_t {
+	char *varname;
+	struct user_var_t *next;
+} user_var_t;
+
 typedef struct {
 	char session;
 	char *group;
@@ -191,6 +196,7 @@ typedef struct {
 	char allow_html_chars;
 	char *upload_dir;
 	char *default_proc;
+	user_var_t *user_vars;
 } modmvproc_config;
 
 typedef struct {
