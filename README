@@ -27,7 +27,7 @@ Configuration
     LoadModule apreq_module /usr/lib/apache2/modules/mod_apreq2.so
     LoadModule mvproc_module /usr/lib/apache2/modules/mod_mvproc.so
 
-There are twelve (12) configuration directives for mod_mvproc:
+There are thirteen (13) configuration directives for mod_mvproc:
 
 mvprocSession (Y or N) - sets session behavior. 
     If sessions are enabled (Y), the module will supply called stored 
@@ -105,7 +105,12 @@ mvprocUploadDirectory - Sets the path to a directory where uploaded
     files are written. It is highly recommended that this path be
     OUTSIDE the docroot. If the path doesn't exist, MVProc will
     attempt to create it. Default value is /tmp
-    
+   
+mvprocUserVars - a comma-delimited set of additional user vars to
+    make available for output from the procs. This is useful when
+    procs CALL each other and SET @mvp_template. Add no whitespace.
+    Example: mvprocUserVars err,inset_include,universal_out
+ 
 Requests
 
 Requests are typical “pretty” web format, like so: http://mysite.com/procname. 
