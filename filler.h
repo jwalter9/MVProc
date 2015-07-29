@@ -195,11 +195,19 @@ static user_val_t *eval_set(apr_pool_t *p, modmvproc_table *tables,
                     dval *= atof(iter->next->tag);
                     break;
                 case _DIVIDE:
-                    dval /= atof(iter->next->tag);
+                    if(atof(iter->next->tag) == 0.0){
+                    	    dval = 0.0;
+                    }else{
+                    	    dval /= atof(iter->next->tag);
+                    };
                     break;
                 case _MOD:
-                    dval /= atof(iter->next->tag);
-                    dval = modf(dval, tmpd);
+                    if(atof(iter->next->tag) == 0.0){
+                    	    dval = 0.0;
+                    }else{
+                    	    dval /= atof(iter->next->tag);
+                    	    dval = modf(dval, tmpd);
+                    };
                     break;
                 default:
                     break;
@@ -214,10 +222,18 @@ static user_val_t *eval_set(apr_pool_t *p, modmvproc_table *tables,
                     lval *= atol(iter->next->tag);
                     break;
                 case _DIVIDE:
-                    lval /= atol(iter->next->tag);
+                    if(atol(iter->next->tag) == 0){
+                    	    lval = 0;
+                    }else{
+                    	    lval /= atol(iter->next->tag);
+                    };
                     break;
                 case _MOD:
-                    lval %= atol(iter->next->tag);
+                    if(atol(iter->next->tag) == 0){
+                    	    lval = 0;
+                    }else{
+                    	    lval %= atol(iter->next->tag);
+                    };
                     break;
                 default:
                     break;
