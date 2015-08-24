@@ -454,7 +454,7 @@ static char *scan_tpl_dir(apr_pool_t *p, modmvproc_config *cfg, char *subdir){
                 sbdir[pos - 4] = '\0';
                 tpl = cfg->template_cache;
                 while(tpl != NULL && tpl->next != NULL) tpl = tpl->next;
-                fchrs = get_file_chars(p, mydir, sbdir);
+                fchrs = get_file_chars(p, cfg->template_dir, sbdir);
                 if(fchrs != NULL){
                     nxt = parse_template(p, fchrs);
                     nxt->filename = (char *)apr_palloc(p, (strlen(sbdir)+1) * sizeof(char));
