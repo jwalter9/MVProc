@@ -246,7 +246,6 @@ static void generate_output(request_rec *r, modmvproc_config *cfg,
 		apreq_handle_t *apreq = apreq_handle_apache2(r);
 		struct stat file_status;
 		if(strcmp(r->uri, "/") != 0 && stat(r->filename, &file_status) == 0) return DECLINED;
-		if(strlen(r->uri) > 65) return DECLINED;
 		
 		modmvproc_config *cfg = ap_get_module_config(r->server->module_config, &mvproc_module);
 		apreq_cookie_t *session_cookie = NULL;
