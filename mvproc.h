@@ -1,5 +1,5 @@
 /*
-   Copyright 2010 Jeff Walter
+   Copyright 2010-2015 Jeff Walter
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -90,6 +90,22 @@ typedef struct modmvproc_table {
     struct modmvproc_table *next;
 } modmvproc_table;
 
+typedef struct tpl_call_param {
+	char *val;
+	struct tpl_call_param *next;
+} tpl_call_param;
+
+typedef struct tpl_call_into {
+	char *tablename;
+	struct tpl_call_into *next;
+} tpl_call_into;
+
+typedef struct {
+	char *procname;
+	tpl_call_param *params;
+	tpl_call_into *into;
+} tpl_call_req;
+
 
 /*  Template typedefs  */
 typedef enum {
@@ -103,7 +119,8 @@ typedef enum {
     _ENDLOOP,
     _INCLUDE,
     _TEMPLATE,
-    _SET
+    _SET,
+    _CALL
 } tag_type;
 
 typedef enum {
@@ -161,12 +178,31 @@ typedef struct user_val_t {
     struct user_val_t *next;
 } user_val_t;
 
+typedef struct call_param_t {
+	char *val;
+	unsigned short cons;
+	struct call_param_t *next;
+} call_param_t;
+
+typedef struct call_into_t {
+	char *tablename;
+	unsigned short cons;
+	struct call_into_t *next;
+} call_into_t;
+
+typedef struct {
+	char *procname;
+	call_param_t *params;
+	call_into_t *into;
+} tpl_call_t;
+
 typedef struct template_segment_t {
     char *tag; /* NULL for first section of a template */
     char *follow_text;
     tag_type type;
     cond_t *ifs; /* NULL unless type _IF or _ELSIF */
     user_val_t *sets;
+    tpl_call_t *call;
     struct template_segment_t *next;
 } template_segment_t;
 
