@@ -11,7 +11,8 @@ Installation
  The Makefile and #includes section of mvproc.h may need to be edited
  before compiling, specifically the APACHE_HOME variable and location
  of apr-1 and apreq2. It will build on Ubuntu, but other distros may
- have different locations of headers and libs. If you have difficulties
+ have different locations of headers and libs 
+ (eg. /usr/lib64 instead of /usr/lib). If you have difficulties
  regarding libuuid.la missing, you'll have to build libapreq2 from source. 
   (apt-get source libapreq2;)
   and configure it to use the available apache installation:
@@ -166,26 +167,28 @@ Procedures
     @mvp_content_type - (if mvprocAllowSetContent = 'Y') - 
         This is passed in as an empty string. 
         It's only used in output if set by the procedure.
+        Populate this in the same way you'd use the Content-Type: header 
+        (eg. 'text/css', 'text/csv', 'application/json')
 
 Known Issues
 
 Returning multiple result sets with the same table name causes 
     libmysqlclient to seg fault. This includes calculated selects. 
     So if you want to do this:
-	
+    
     SELECT 'a value' AS one_value; SELECT 'more value' AS too_value;
 
     Instead, do this:
-	SELECT 'a value' AS one_value, 'more value' AS too_value;
+    SELECT 'a value' AS one_value, 'more value' AS too_value;
 
-	And if you want to return multiple result sets from the same table, 
-	use aliases.
+    And if you want to return multiple result sets from the same table, 
+    use aliases.
 
 If libmysqlclient starts to allow multiple result sets from the same 
     table, be cautious about using EASY_XML and EASY_JSON output. 
     The results are, at this point, undefined.
 
-Output
+Output (non-templated)
 
     XML MIXED is the default output of a request. If no template exists, 
     the module goes with this. Result sets are rendered in xml as a 
@@ -332,6 +335,57 @@ Templates
             and floats must have a '.' (eg 0.0)
         - The comma is for multiple assignments in a tag, like so: 
             <# SET a = 0, b = 'hi', c = @.a / 1 #>
+
+    CALL - <# CALL procname([comma-separated args]) [INTO] tablename(s) #>
+        I hesitated for about five years to add something like this to MVProc – 
+        there is no reason whatsoever to ever use this tag. Or is there...? 
+        In any case, it's easy to use. 
+        
+         - 'procname' would, of course, be the name of the procedure to call, 
+             followed by the argument list in parentheses. 
+         - 'INTO' is optional and states the table names to insert the result 
+             set(s) into. 
+         - For arguments, if you don't supply enough arguments, MVProc will 
+             send empty values to the procedure. If you supply too many, 
+             the extras will be ignored.  Arguments themselves are value tags, 
+             so PROC_OUT.myval will send the contents of PROC_OUT.myval and 
+             such, just like the value tag. To send a literal, enclose in 
+             single quotes like 'my argument!' - and just like the IF and SET 
+             tags (and others) escape single quotes with a backslash.
+         - The optional INTO declaration works the same way as arguments, 
+             in that extra values supplied will be ignored, and if more result 
+             sets come from the procedure than names are supplied, the table 
+             names will be used (just like the main procedure call). Also like 
+             arguments, you can supply table names from value tags or 
+             literal values.
+         - CALL works a bit differently than the main procedure call in that 
+             all input values to the procedure must be declared by the 
+             procedure definition and listed with the parameters. For example, 
+             the @mvp_session variable is not supplied unless you specifically 
+             pass it into the procedure as an argument. 
+             (UserVars are, however, available for undeclared output from the 
+             procedure.) Instead of PROC_OUT holding the parameters from OUT, 
+             INOUT, and UserVars, the default name of that result of the 
+             CALL output is named 'PARAMS_OUT' 
+         - When results are returned from the CALLed procedure, any table names
+             identical to already existing results in the templates' data 
+             structure will be replaced. So if your main procedure returns 
+             'vendors', 'products', and PROC_OUT data, then you call another 
+             procedure that outputs 'vendors' and PARAMS_OUT, you'll lose 
+             access to the original 'vendors' result set. This is the reason 
+             for the INTO declaration.
+         - As a final word on the CALL tag, I can say without reservation that 
+             use of it can be the most wasteful, inefficient, and unnecessary 
+             exercise to undertake with MVProc. Always consider whether there's
+             a way to have things handled in the main procedure call. 
+             The inefficiency is more than just the CPU and memory cost of the 
+             queries. It uses a connection from the connection pool, MySQL has 
+             to parse the incoming request, data structures have to be alloc'ed
+             and eventually de-alloc'ed... 
+             so if you have an MVProc site that uses CALL liberally and seems 
+             to be running slowly, LOOK THERE FIRST.
+         - And, of course, I'm sizing up a project that will use CALL. 
+             Wish me luck.
 
 
 

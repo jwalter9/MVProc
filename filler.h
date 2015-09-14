@@ -1,5 +1,5 @@
 /*
-   Copyright 2010 Jeff Walter
+   Copyright 2010-2015 Jeff Walter
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -141,6 +141,106 @@ static template_segment_t *skip_ahead(template_segment_t *piece, int begin_tag, 
     return NULL;
 }
 
+static void eval_call(modmvproc_config *cfg, request_rec *r, 
+			modmvproc_table *tables, char *cur_table, int cur_row, 
+			tpl_call_t *call){
+	tpl_call_req *req = 
+		(tpl_call_req *)apr_palloc(r->pool, sizeof(tpl_call_req));
+	if(!req) return;
+	req->params = NULL;
+	req->into = NULL;
+	tpl_call_param *param;
+	tpl_call_into *into;
+	call_param_t *piter = call->params;
+	call_into_t *titer = call->into;
+	db_val_t *look;
+	/* req won't be altered by the call to tplRequest, so there's no 
+	   need to consume extra memory or spend CPU copying strings */
+	req->procname = call->procname; 
+	if(piter){
+		param = (tpl_call_param *)apr_palloc(r->pool, 
+			sizeof(tpl_call_param));
+		if(!param) return;
+		param->val = NULL;
+		param->next = NULL;
+		req->params = param;
+	};
+	while(piter){
+		if(piter->cons){
+			param->val = piter->val;
+		}else{
+			look = get_tag_value(r->pool, piter->val, 
+					tables, cur_table, cur_row);
+			param->val = look->val;
+		};
+		if(piter->next){
+			param->next = (tpl_call_param *)apr_palloc(r->pool, 
+				sizeof(tpl_call_param));
+			if(!param->next) return;
+			param = param->next;
+			param->val = NULL;
+			param->next = NULL;
+		};
+		piter = piter->next;
+	};
+	if(titer){
+		into = (tpl_call_into *)apr_palloc(r->pool, 
+			sizeof(tpl_call_into));
+		if(!into) return;
+		into->tablename = NULL;
+		into->next = NULL;
+		req->into = into;
+	};
+	while(titer){
+		if(titer->cons){
+			into->tablename = titer->tablename;
+		}else{
+			look = get_tag_value(r->pool, titer->tablename, 
+					tables, cur_table, cur_row);
+			into->tablename = look->val;
+		};
+		if(titer->next){
+			into->next = (tpl_call_into *)apr_palloc(r->pool, 
+				sizeof(tpl_call_into));
+			if(!into->next) return;
+			into = into->next;
+			into->tablename = NULL;
+			into->next = NULL;
+		};
+		titer = titer->next;
+	};
+	
+	modmvproc_table *tbls = tplRequest(cfg, r, req);
+	modmvproc_table *tblptr;
+	modmvproc_table *tbliter;
+	if(tbls){
+		/* merge the tables, replacing tables of the same name */
+		while(tbls){
+			tbliter = tables;
+			while(tbliter){
+				if(strcmp(tbliter->name, tbls->name) == 0){
+					tbliter->num_rows = tbls->num_rows;
+					tbliter->num_fields = tbls->num_fields;
+					tbliter->cols = tbls->cols;
+					break;
+				};
+				tbliter = tbliter->next;
+			};
+			if(!tbliter){
+				tbliter = tables;
+				while(tbliter->next) tbliter = tbliter->next;
+				tblptr = tbls->next;
+				tbls->next = NULL;
+				tbliter->next = tbls;
+				tbls = tblptr;
+			}else{
+				tbls = tbls->next;
+			};
+		};
+	};
+	return;
+}
+    
 static user_val_t *eval_set(apr_pool_t *p, modmvproc_table *tables, 
     char *cur_table, int cur_row, user_val_t *setv){
     long lval;
@@ -505,6 +605,12 @@ static void fill_template(request_rec *r, modmvproc_config *cfg, template_cache_
         case _SET:
             if(ifstate[ifdepth] == 1){
                 eval_set(r->pool, tables, cur_table, cur_row, piece->sets);
+                ap_rprintf(r, "%s", piece->follow_text);
+            };
+            break;
+        case _CALL:
+            if(ifstate[ifdepth] == 1){
+        	eval_call(cfg, r, tables, cur_table, cur_row, piece->call);
                 ap_rprintf(r, "%s", piece->follow_text);
             };
             break;

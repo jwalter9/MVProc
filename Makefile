@@ -15,7 +15,6 @@ APXS=/usr/bin/apxs2
 APACHECTL=/usr/sbin/apachectl
 
 #   additional defines, includes and libraries
-#DEFS=
 INCLUDES=-I/usr/include/apreq2 -Wall
 LIBS=-lmysqlclient_r -lapreq2
 LDFLAGS=-Wl,--as-needed -Wl,-z,relro $(LIBS)

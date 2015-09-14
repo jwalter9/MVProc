@@ -1,5 +1,5 @@
 /*
-   Copyright 2010 Jeff Walter
+   Copyright 2010-2015 Jeff Walter
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -320,10 +320,102 @@ static size_t parse_set(apr_pool_t *p, char *tag, user_val_t *setv){
     else{ return pos; };
     tag[pos] = '\0';
     pos++;
-    setv->next = (user_val_t *)apr_palloc(p, (sizeof(user_val_t)));
+    setv->next = (user_val_t *)apr_palloc(p, sizeof(user_val_t));
     if(setv->next == NULL) return strcspn(tag, "#");
     pos += parse_set(p, &tag[pos], setv->next);
     return pos;
+}
+
+static size_t parse_call(apr_pool_t *p, char *tag, tpl_call_t *call){
+	call->params = NULL;
+	call->into = NULL;
+	call->procname = NULL;
+	call_param_t *param;
+	call_param_t *nextp;
+	call_into_t *into;
+	call_into_t *nextinto;
+	size_t pos = strspn(tag, " \t\r\n");
+	size_t stop = strstr(tag, "#>") - tag;
+	if(pos >= stop) return stop;
+
+	call->procname = &tag[pos];
+	pos += strcspn(&tag[pos], " \t\r\n(");
+	tag[pos] = '\0';
+	pos++;
+	pos += strspn(&tag[pos], " \t\r\n(");
+	while(pos < stop && tag[pos] != ')' && tag[pos] != '#'){
+		param = (call_param_t *)apr_palloc(p, sizeof(call_param_t));
+		if(param == NULL) return stop;
+		param->cons = 0;
+		param->next = NULL;
+		if(call->params == NULL){
+			call->params = param;
+		}else{
+			nextp = call->params;
+			while(nextp->next != NULL) nextp = nextp->next;
+			nextp->next = param;
+		};
+		if(tag[pos] == '\''){
+			pos++;
+			param->val = &tag[pos];
+			pos += strcspn(&tag[pos], "'");
+			while(tag[pos - 1] == '\\'){
+				pos++;
+				pos += strcspn(&tag[pos], "'");
+			};
+			tag[pos] = '\0';
+			pos++;
+			param->cons = 1;
+		}else{
+			param->val = &tag[pos];
+			pos += strcspn(&tag[pos], " \t\r\n,)");
+			if(tag[pos] == ')'){
+				tag[pos] = '\0';
+				break;
+			};
+			tag[pos] = '\0';
+			pos++;
+		};
+		pos += strspn(&tag[pos], " \t\r\n,");
+	};
+	pos += strspn(&tag[pos], " \t\r\n)");
+	if(strncmp(&tag[pos], "INTO ", 5) != 0 
+		&& strncmp(&tag[pos], "into ", 5) != 0) return stop;
+	
+	pos += 5;
+	pos += strspn(&tag[pos], " \t\r\n");
+	while(pos < stop && tag[pos] != '#'){
+		into = (call_into_t *)apr_palloc(p, sizeof(call_into_t));
+		if(into == NULL) return stop;
+		into->cons = 0;
+		into->next = NULL;
+		if(call->into == NULL){
+			call->into = into;
+		}else{
+			nextinto = call->into;
+			while(nextinto->next != NULL) nextinto = nextinto->next;
+			nextinto->next = into;
+		};
+		if(tag[pos] == '\''){
+			pos++;
+			into->tablename = &tag[pos];
+			pos += strcspn(&tag[pos], "'");
+			while(tag[pos - 1] == '\\'){
+				pos++;
+				pos += strcspn(&tag[pos], "'");
+			};
+			tag[pos] = '\0';
+			pos++;
+			into->cons = 1;
+		}else{
+			into->tablename = &tag[pos];
+			pos += strcspn(&tag[pos], " \t\r\n,#");
+			tag[pos] = '\0';
+			pos++;
+		};
+		pos += strspn(&tag[pos], " \t\r\n,");
+	};
+	return pos;
 }
 
 static template_cache_t *parse_template(apr_pool_t *p, char *tplstr){
@@ -410,6 +502,14 @@ static template_cache_t *parse_template(apr_pool_t *p, char *tplstr){
             next->sets = (user_val_t *)apr_palloc(p, (sizeof(user_val_t)));
             if(next->sets == NULL) return NULL;
             pos += parse_set(p, &nstr[pos], next->sets);
+        }else if(strncmp(&nstr[pos], "CALL ", 5) == 0 
+            || strncmp(&nstr[pos], "call ", 5) == 0){
+            next->type = _CALL;
+            pos += 5;
+            next->tag = &nstr[pos];
+            next->call = (tpl_call_t *)apr_palloc(p, (sizeof(tpl_call_t)));
+            if(next->call == NULL) return NULL;
+            pos += parse_call(p, &nstr[pos], next->call);
         }else{
             next->type = _VALUE;
             next->tag = &nstr[pos];

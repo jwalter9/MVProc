@@ -1,5 +1,5 @@
 /*
-   Copyright 2010 Jeff Walter
+   Copyright 2010-2015 Jeff Walter
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -281,6 +281,364 @@ static modmvproc_table *dbError(modmvproc_config *cfg, request_rec *r,
     db_cleanup((mvpool_t *)cfg->pool, mysql);
     return ret;
 }
+
+static modmvproc_table *tplRequest(modmvproc_config *cfg, request_rec *r,
+				   tpl_call_req *req){
+
+    MYSQL *mysql = db_connect(cfg, r);
+    if(mysql == NULL) return NULL;
+	modmvproc_cache *cache_entry = NULL;
+	size_t qsize = 0, pos = 0;
+    char *escaped;
+    char *procname = (char *)apr_palloc(r->pool, strlen(req->procname) * 2 + 1);
+    mysql_real_escape_string(mysql, procname, req->procname, strlen(req->procname)); 
+    MYSQL_RES *result;
+    MYSQL_ROW row;
+
+    db_param_t *param;
+    mvulong parm_ind = 0;
+
+    if(cfg->cache != NULL){
+        cache_entry = cfg->cache;
+        while(cache_entry != NULL){
+            if(strcmp(cache_entry->procname,procname) == 0) break;
+            cache_entry = cache_entry->next;
+        };
+        if(cache_entry == NULL){
+            if(cfg->default_proc == NULL){
+              	procname = (char *)apr_palloc(r->pool, 8);
+               	strcpy(procname, "landing");
+            }else{
+               	procname = (char *)apr_palloc(r->pool, 
+               		strlen(cfg->default_proc) + 1);
+               	strcpy(procname, cfg->default_proc);
+            };
+            cache_entry = cfg->cache;
+            while(cache_entry != NULL){
+               	if(strcmp(cache_entry->procname,procname) == 0) break;
+               	cache_entry = cache_entry->next;
+            };
+            if(cache_entry == NULL){
+            	db_cleanup((mvpool_t *)cfg->pool, mysql);
+            	ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+    	            "Template request for unknown content: %s", procname);
+            	return NULL;
+            };
+        };
+    }else{
+        qsize = 85 + strlen(mysql->db) + strlen(procname);
+        char *proc_query = apr_palloc(r->pool, qsize * sizeof(char));
+        sprintf(proc_query, "SELECT name, param_list FROM mysql.proc WHERE db='%s' AND type='PROCEDURE' AND name='%s'",
+            mysql->db, procname);
+        if(mysql_real_query(mysql,proc_query,strlen(proc_query)) != 0){
+            return dbError(cfg, r, mysql);
+        };
+        result = mysql_store_result(mysql);
+        if(mysql_num_rows(result) < 1){
+            /* no proc by that name? use default_proc or 'landing' */
+            mysql_free_result(result);
+            if(cfg->default_proc == NULL){
+                procname = (char *)apr_palloc(r->pool, 8);
+                strcpy(procname, "landing");
+            }else{
+                procname = (char *)apr_palloc(r->pool, strlen(cfg->default_proc) + 1);
+                strcpy(procname, cfg->default_proc);
+            };
+            qsize = 85 + strlen(mysql->db) + strlen(procname);
+            proc_query = apr_palloc(r->pool, qsize * sizeof(char));
+            sprintf(proc_query, "SELECT name, param_list FROM mysql.proc WHERE db='%s' AND type='PROCEDURE' AND name='%s'",
+                mysql->db, procname);
+            if(mysql_real_query(mysql,proc_query,strlen(proc_query)) != 0){
+                return dbError(cfg, r, mysql);
+            };
+            result = mysql_store_result(mysql);
+            if(mysql_num_rows(result) < 1){
+                mysql_free_result(result);
+                db_cleanup((mvpool_t *)cfg->pool, mysql);
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                    "Request for unknown content: %s", procname);
+                return NULL;
+            };
+        };
+        row = mysql_fetch_row(result);
+        if(row == NULL){
+            return dbError(cfg, r, mysql);
+        };
+        cache_entry = (modmvproc_cache *)apr_palloc(r->pool, (sizeof(modmvproc_cache)));
+        if(cache_entry == NULL) OUT_OF_MEMORY;
+        fill_proc_struct(r->pool, (char *)row[0], (char *)row[1], cache_entry);
+    };
+
+    /* large starting size for headroom and changes */
+    qsize = 1024 + strlen(procname);
+
+    parm_ind = 0;
+    param = cache_entry->param_list;
+    db_call_param inparms[cache_entry->num_params];
+    tpl_call_param *tplParam;
+    tplParam = req->params;
+    while(param != NULL){
+        if(tplParam == NULL){
+            inparms[parm_ind].val = NULL;
+        }else{
+                escaped = (char *)apr_palloc(r->pool, (strlen(tplParam->val) * 2 + 1) * sizeof(char));
+                if(escaped == NULL) OUT_OF_MEMORY;
+                mysql_real_escape_string(mysql, escaped, tplParam->val, strlen(tplParam->val));
+                inparms[parm_ind].val = escaped;
+        };
+        switch(param->in_or_out){
+        case IN:
+            if(inparms[parm_ind].val == NULL){
+                qsize += 6;
+            }else{
+                qsize += strlen(inparms[parm_ind].val) + 4;
+            };
+            break;
+        case INOUT:
+            if(inparms[parm_ind].val == NULL){
+                qsize += strlen(param->name) * 2 + 19;
+            }else{
+                qsize += strlen(param->name) * 2 + strlen(inparms[parm_ind].val) + 17;
+            };
+            break;
+        case OUT:
+            qsize += strlen(param->name) * 2 + 17;
+            break;
+        default:
+            break;
+        };
+        inparms[parm_ind].param = param;
+        parm_ind++;
+        param = param->next;
+        if(tplParam != NULL) tplParam = tplParam->next;
+    };
+    
+    user_var_t *uvar = cfg->user_vars;
+    while(uvar != NULL){
+    	    qsize += strlen(uvar->varname) * 2 + 21;
+    	    uvar = uvar->next;
+    };
+    
+    pos = 0;
+    char query[qsize];
+    for(parm_ind = 0; parm_ind < cache_entry->num_params; parm_ind++){
+        switch(inparms[parm_ind].param->in_or_out){
+        case INOUT:
+            if(inparms[parm_ind].val == NULL){
+                sprintf(&query[pos],"SET @%s = NULL; ", inparms[parm_ind].param->name);
+            }else{
+                sprintf(&query[pos],"SET @%s = '%s'; ",
+                    inparms[parm_ind].param->name,inparms[parm_ind].val);
+            };
+            pos = strlen(query);
+            break;
+        case OUT:
+            sprintf(&query[pos],"SET @%s = ''; ",inparms[parm_ind].param->name);
+            pos = strlen(query);
+            break;
+        default:
+            break;
+        };
+    };
+    
+    uvar = cfg->user_vars;
+    while(uvar != NULL){
+    	pos += escapeUserVar(mysql, uvar->varname, NULL, &query[pos]);
+    	uvar = uvar->next;
+    };
+    
+    sprintf(&query[pos], "CALL %s(",cache_entry->procname);
+    pos = strlen(query);
+    param = cache_entry->param_list;
+    for(parm_ind = 0; parm_ind < cache_entry->num_params; parm_ind++){
+        switch(inparms[parm_ind].param->in_or_out){
+        case IN:
+            if(inparms[parm_ind].val == NULL){
+                strcpy(&query[pos], "NULL");
+            }else{
+                sprintf(&query[pos],"'%s'", inparms[parm_ind].val);
+            };
+            pos = strlen(query);
+            break;
+        case INOUT:
+        case OUT:
+            sprintf(&query[pos],"@%s",inparms[parm_ind].param->name);
+            pos = strlen(query);
+            break;
+        };
+        if(inparms[parm_ind].param->next != NULL){
+            query[pos] = ',';
+            pos++;
+        };
+    };
+    sprintf(&query[pos],");");
+    pos += 2;
+
+    qsize = 0;
+    for(parm_ind = 0; parm_ind < cache_entry->num_params; parm_ind++){
+        switch(inparms[parm_ind].param->in_or_out){
+        case INOUT:
+        case OUT:
+            sprintf(&query[pos],"%s@%s", qsize > 0 ? ", " : " SELECT ",
+                inparms[parm_ind].param->name);
+            pos = strlen(query);
+            qsize++;
+            break;
+        default:
+            break;
+        };
+    };
+
+    uvar = cfg->user_vars;
+    while(uvar != NULL){
+        sprintf(&query[pos],"%s@%s",qsize > 0 ? ", ":" SELECT ",uvar->varname);
+        pos = strlen(query);
+        qsize++;
+        uvar = uvar->next;
+    };
+    
+    if(qsize > 0) sprintf(&query[pos],";");
+    
+    if(mysql_real_query(mysql,query,strlen(query)) != 0){
+        return dbError(cfg, r, mysql);
+    };
+
+    int status = 0;
+    mvulong f, ro, c, *lens;
+    db_col_type *coltypes;
+    MYSQL_FIELD *fields;
+    
+    modmvproc_table *next = 
+    (modmvproc_table *)apr_palloc(r->pool, sizeof(modmvproc_table));
+    if(next == NULL) OUT_OF_MEMORY;
+    next->next = NULL;
+    next->name = NULL;
+    modmvproc_table *tables = next;
+    modmvproc_table *last = NULL;
+    tpl_call_into *into = req->into;
+    
+    do{
+        result = mysql_store_result(mysql);
+        if(result){
+            next->num_rows = mysql_num_rows(result);
+            if(next->num_rows < 1)continue;
+            next->num_fields = mysql_num_fields(result);
+            next->cols = (db_col_t *)apr_palloc(r->pool, 
+                next->num_fields * sizeof(db_col_t));
+            if(next->cols == NULL) OUT_OF_MEMORY;
+            coltypes = (db_col_type *)apr_palloc(r->pool,
+                next->num_fields * sizeof(db_col_type));
+            for(c = 0; c < next->num_fields; c++)
+                next->cols[c].name = NULL;
+
+            fields = mysql_fetch_fields(result);
+            next->name = NULL;
+            for(f = 0; f < next->num_fields; f++){
+                switch(fields[f].type){
+                case MYSQL_TYPE_BLOB:
+                    coltypes[f] = _BLOB;
+                    break;
+                case MYSQL_TYPE_BIT:
+                case MYSQL_TYPE_TINY:
+                case MYSQL_TYPE_SHORT:
+                case MYSQL_TYPE_LONG:
+                case MYSQL_TYPE_INT24:
+                case MYSQL_TYPE_LONGLONG:
+                    coltypes[f] = _LONG;
+                    break;
+                case MYSQL_TYPE_DECIMAL:
+                case MYSQL_TYPE_NEWDECIMAL:
+                case MYSQL_TYPE_FLOAT:
+                case MYSQL_TYPE_DOUBLE:
+                    coltypes[f] = _DOUBLE;
+                    break;
+                default:
+                    coltypes[f] = _STRING;
+                    break;
+                };
+                if(fields[f].length > 32) coltypes[f] = _BLOB;
+                next->cols[f].name = 
+                    (char *)apr_palloc(r->pool, (strlen(fields[f].name)+1) * sizeof(char));
+                if(next->cols[f].name == NULL) OUT_OF_MEMORY;
+                if(fields[f].name[0] == '@')
+                    strcpy(next->cols[f].name, &fields[f].name[1]);
+                else
+                    strcpy(next->cols[f].name, fields[f].name);
+
+                next->cols[f].vals = (db_val_t *)apr_palloc(r->pool,
+                    next->num_rows * sizeof(db_val_t));
+                if(next->cols[f].vals == NULL) OUT_OF_MEMORY;
+                if(next->name == NULL && into != NULL && into->tablename != NULL){
+                    next->name = 
+                        (char *)apr_palloc(r->pool, (strlen(into->tablename) + 1) * sizeof(char));
+                    if(next->name == NULL) OUT_OF_MEMORY;
+                    strcpy(next->name, into->tablename);
+                };
+                if(next->name == NULL && strlen(fields[f].table) > 0){
+                    next->name = 
+                        (char *)apr_palloc(r->pool, (strlen(fields[f].table) + 1) * sizeof(char));
+                    if(next->name == NULL) OUT_OF_MEMORY;
+                    strcpy(next->name, fields[f].table);
+                };
+            };
+            for(ro = 0; ro < next->num_rows; ro++){
+                row = mysql_fetch_row(result);
+                if(row == NULL) break;
+                lens = mysql_fetch_lengths(result);
+                for(f = 0; f < next->num_fields; f++){
+                    next->cols[f].vals[ro].type = coltypes[f];
+                    next->cols[f].vals[ro].size = lens[f];
+                    next->cols[f].vals[ro].val = 
+                    (char *)apr_palloc(r->pool, (lens[f] + 1) * sizeof(char));
+                    if(next->cols[f].vals[ro].val == NULL) OUT_OF_MEMORY;
+                    memcpy(next->cols[f].vals[ro].val, row[f], lens[f]);
+                    next->cols[f].vals[ro].val[lens[f]] = '\0';
+                };
+            };
+            
+            if(!mysql_more_results(mysql) && qsize > 0){ 
+                if(into == NULL || into->tablename == NULL){
+                	next->name = (char *)apr_palloc(r->pool, 11 * sizeof(char));
+                	if(next->name == NULL) OUT_OF_MEMORY;
+                	strcpy(next->name, "PARAMS_OUT");
+                }else{
+                	next->name = (char *)apr_palloc(r->pool, strlen(into->tablename) * sizeof(char));
+                	if(next->name == NULL) OUT_OF_MEMORY;
+                	strcpy(next->name, into->tablename);
+                };
+               	if(last != NULL) last->next = next;
+            }else{
+                if(next->name == NULL){
+                    next->name = (char *)apr_palloc(r->pool, 7 * sizeof(char));
+                    if(next->name == NULL) OUT_OF_MEMORY;
+                    strcpy(next->name, "status");
+                };
+                if(last != NULL)
+                    last->next = next;
+                last = next;
+                next = (modmvproc_table *)apr_palloc(r->pool, sizeof(modmvproc_table));
+                if(next == NULL) OUT_OF_MEMORY;
+                next->next = NULL;
+            };
+            mysql_free_result(result);
+            if(into != NULL) into = into->next;
+        };
+        status = mysql_next_result(mysql);
+        if(status > 0){
+            return dbError(cfg, r, mysql);
+        };
+    }while(status == 0);
+    
+    if(tables->name == NULL){
+        tables->name = (char *)apr_palloc(r->pool, 10 * sizeof(char));
+        if(tables->name == NULL) OUT_OF_MEMORY;
+        strcpy(tables->name, "no_result");
+    };
+
+    db_cleanup((mvpool_t *)cfg->pool, mysql);
+    return tables;
+}
+
 
 static modmvproc_table *getDBResult(modmvproc_config *cfg, request_rec *r,
                                     apreq_handle_t *apreq, 
