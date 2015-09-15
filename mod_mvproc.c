@@ -330,7 +330,7 @@ static void generate_output(request_rec *r, modmvproc_config *cfg,
 	static const char *maybe_build_cache(cmd_parms *parms, void *mconfig, const char *arg){
 		modmvproc_config *cfg = ap_get_module_config(parms->server->module_config, &mvproc_module);
 		if(cfg->group == NULL)
-			return "mvprocCache directive must follow mvprocDbGroup or mvprocDbConnectString directive";
+			return "mvprocCache directive must follow mvprocDbGroup directive";
 		// Turn on caching ONLY if explicitly specified
 		if(arg[0] == 'N' || arg[0] == 'n') return NULL;
 		const char *cv = NULL;
