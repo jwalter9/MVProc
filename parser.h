@@ -296,7 +296,7 @@ static size_t parse_set(apr_pool_t *p, char *tag, user_val_t *setv){
                     pos++;
                 };
             }else{
-                i = strcspn(&tag[pos], "=+-*/%#");
+                i = strcspn(&tag[pos], "=+-*/%#,");
                 f = strcspn(&tag[pos], " \t\r\n");
                 if(i > f){
                     pos += f;
